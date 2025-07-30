@@ -1,0 +1,25 @@
+{
+  "name": "filelair",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "frontend",
+    "backend",
+    "infrastructure"
+  ],
+  "scripts": {
+    "frontend:dev": "npm run dev --workspace=frontend",
+    "frontend:build": "npm run build --workspace=frontend",
+    "backend:build": "npm run build --workspace=backend",
+    "infra:deploy": "npm run deploy --workspace=infrastructure",
+    "infra:synth": "npm run synth --workspace=infrastructure",
+    "build": "npm run build --workspaces"
+  },
+  "engines": {
+    "node": ">=22.17.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.3.2"
+  }
+}

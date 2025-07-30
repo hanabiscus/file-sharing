@@ -1,0 +1,27 @@
+{
+  "name": "infrastructure",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "build:all": "cd ../frontend && npm run build && cd ../backend && npm run build && cd ../infrastructure && npm run build",
+    "watch": "tsc -w",
+    "cdk": "cdk",
+    "synth": "cdk synth",
+    "deploy": "npm run build:all && cdk deploy",
+    "destroy": "cdk destroy",
+    "diff": "cdk diff"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "aws-cdk": "^2.115.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.2"
+  },
+  "dependencies": {
+    "aws-cdk-lib": "^2.207.0",
+    "constructs": "^10.3.0",
+    "esbuild": "^0.25.8",
+    "source-map-support": "^0.5.21"
+  }
+}
