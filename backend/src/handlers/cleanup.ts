@@ -9,8 +9,8 @@ import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
 const s3Client = new S3Client({});
 const dynamoClient = new DynamoDBClient({});
 
-const BUCKET_NAME = process.env.S3_BUCKET_NAME || "filelair-files";
-const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "filelair";
+const BUCKET_NAME = "filelair-files";
+const TABLE_NAME = "filelair";
 
 export async function handler(event: ScheduledEvent): Promise<void> {
   console.log("Starting cleanup job");

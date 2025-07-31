@@ -8,7 +8,7 @@ import {
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = process.env.DYNAMODB_TABLE_NAME || "filelair";
+const TABLE_NAME = "filelair";
 
 interface RateLimitRecord {
   pk: string;
