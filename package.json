@@ -8,11 +8,13 @@
     "infrastructure"
   ],
   "scripts": {
+    "install:all": "npm ci",
     "frontend:dev": "npm run dev --workspace=frontend",
     "frontend:build": "npm run build --workspace=frontend",
     "backend:build": "npm run build --workspace=backend",
     "infra:deploy": "npm run deploy --workspace=infrastructure",
     "infra:synth": "npm run synth --workspace=infrastructure",
+    "infra:diff": "npm run diff --workspace=infrastructure",
     "build": "npm run build --workspaces"
   },
   "engines": {

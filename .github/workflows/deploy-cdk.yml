@@ -38,10 +38,8 @@ jobs:
           aws-region: ap-northeast-1
 
       - name: CDK Diff
-        working-directory: ./infrastructure
-        run: npm run diff
+        run: npm run infra:diff
 
       - name: CDK Deploy
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        working-directory: ./infrastructure
-        run: npm run deploy --all --require-approval never
+        run: npm run infra:deploy -- --all --require-approval never
