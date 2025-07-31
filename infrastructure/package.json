@@ -6,11 +6,11 @@
     "build": "tsc",
     "build:all": "cd ../frontend && npm run build && cd ../backend && npm run build && cd ../infrastructure && npm run build",
     "watch": "tsc -w",
-    "cdk": "cdk",
-    "synth": "cdk synth",
-    "deploy": "npm run build:all && cdk deploy",
-    "destroy": "cdk destroy",
-    "diff": "cdk diff"
+    "cdk": "npx cdk",
+    "synth": "npx cdk synth",
+    "deploy": "npm run build:all && npx cdk deploy",
+    "destroy": "npx cdk destroy",
+    "diff": "npx cdk diff"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
