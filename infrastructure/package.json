@@ -10,7 +10,7 @@
     "synth": "npx cdk synth",
     "deploy": "npm run build:all && npx cdk deploy",
     "destroy": "npx cdk destroy",
-    "diff": "npx cdk diff"
+    "diff": "npm run build:all && npx cdk diff"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
