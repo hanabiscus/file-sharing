@@ -41,8 +41,10 @@ jobs:
         run: npm install -g aws-cdk
 
       - name: CDK Diff
+        working-directory: ./infrastructure
         run: cdk diff
 
       - name: CDK Deploy
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-        run: cdk deploy --all --require-approval never
+        working-directory: ./infrastructure
+        run: npm run build:all && cdk deploy --all --require-approval never
