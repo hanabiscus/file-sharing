@@ -37,14 +37,11 @@ jobs:
           role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
           aws-region: ap-northeast-1
 
-      - name: Install CDK
-        run: npm install -g aws-cdk
-
       - name: CDK Diff
         working-directory: ./infrastructure
-        run: cdk diff
+        run: npm run diff
 
       - name: CDK Deploy
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: ./infrastructure
-        run: npm run build:all && cdk deploy --all --require-approval never
+        run: npm run deploy --all --require-approval never
