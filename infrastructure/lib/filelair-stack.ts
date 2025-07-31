@@ -51,31 +51,178 @@ export class FileLairStack extends cdk.Stack {
       description: "Role for GitHub Actions to deploy CDK",
     });
 
-    // Attach necessary policies for CDK deployment
-    githubActionsRole.addManagedPolicy(
-      iam.ManagedPolicy.fromAwsManagedPolicyName("PowerUserAccess")
-    );
+    // Create a custom policy with least privilege for CDK deployment
+    const cdkDeployPolicy = new iam.PolicyDocument({
+      statements: [
+        // CloudFormation permissions
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "cloudformation:CreateStack",
+            "cloudformation:UpdateStack",
+            "cloudformation:DeleteStack",
+            "cloudformation:DescribeStacks",
+            "cloudformation:DescribeStackEvents",
+            "cloudformation:GetTemplate",
+            "cloudformation:ValidateTemplate",
+            "cloudformation:CreateChangeSet",
+            "cloudformation:ExecuteChangeSet",
+            "cloudformation:DeleteChangeSet",
+            "cloudformation:DescribeChangeSet"
+          ],
+          resources: [
+            `arn:aws:cloudformation:${this.region}:${this.account}:stack/${this.stackName}/*`,
+            `arn:aws:cloudformation:${this.region}:${this.account}:stack/CDKToolkit/*`
+          ]
+        }),
+        // S3 permissions for CDK assets and deployment
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "s3:CreateBucket",
+            "s3:PutBucketPolicy",
+            "s3:PutBucketPublicAccessBlock",
+            "s3:PutBucketVersioning",
+            "s3:PutBucketEncryption",
+            "s3:PutBucketLifecycle",
+            "s3:PutBucketCors",
+            "s3:GetBucketLocation",
+            "s3:GetBucketPolicy",
+            "s3:ListBucket",
+            "s3:PutObject",
+            "s3:GetObject",
+            "s3:DeleteObject",
+            "s3:DeleteBucket"
+          ],
+          resources: [
+            `arn:aws:s3:::filelair-*`,
+            `arn:aws:s3:::filelair-*/*`,
+            `arn:aws:s3:::cdk-*`,
+            `arn:aws:s3:::cdk-*/*`
+          ]
+        }),
+        // Lambda permissions
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "lambda:CreateFunction",
+            "lambda:UpdateFunctionCode",
+            "lambda:UpdateFunctionConfiguration",
+            "lambda:GetFunction",
+            "lambda:DeleteFunction",
+            "lambda:InvokeFunction",
+            "lambda:AddPermission",
+            "lambda:RemovePermission",
+            "lambda:GetFunctionConfiguration",
+            "lambda:TagResource",
+            "lambda:UntagResource"
+          ],
+          resources: [
+            `arn:aws:lambda:${this.region}:${this.account}:function:${this.stackName}-*`
+          ]
+        }),
+        // DynamoDB permissions
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "dynamodb:CreateTable",
+            "dynamodb:UpdateTable",
+            "dynamodb:DeleteTable",
+            "dynamodb:DescribeTable",
+            "dynamodb:UpdateTimeToLive",
+            "dynamodb:TagResource",
+            "dynamodb:UntagResource"
+          ],
+          resources: [
+            `arn:aws:dynamodb:${this.region}:${this.account}:table/filelair`
+          ]
+        }),
+        // API Gateway permissions
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "apigateway:*"
+          ],
+          resources: [
+            `arn:aws:apigateway:${this.region}::/restapis/*`,
+            `arn:aws:apigateway:${this.region}::/tags/*`
+          ]
+        }),
+        // CloudFront permissions
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "cloudfront:CreateDistribution",
+            "cloudfront:UpdateDistribution",
+            "cloudfront:DeleteDistribution",
+            "cloudfront:GetDistribution",
+            "cloudfront:TagResource",
+            "cloudfront:UntagResource",
+            "cloudfront:CreateOriginAccessIdentity",
+            "cloudfront:DeleteOriginAccessIdentity",
+            "cloudfront:GetOriginAccessIdentity",
+            "cloudfront:CreateResponseHeadersPolicy",
+            "cloudfront:UpdateResponseHeadersPolicy",
+            "cloudfront:DeleteResponseHeadersPolicy",
+            "cloudfront:GetResponseHeadersPolicy"
+          ],
+          resources: ["*"]
+        }),
+        // EventBridge permissions
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "events:PutRule",
+            "events:DeleteRule",
+            "events:DescribeRule",
+            "events:PutTargets",
+            "events:RemoveTargets"
+          ],
+          resources: [
+            `arn:aws:events:${this.region}:${this.account}:rule/${this.stackName}-*`
+          ]
+        }),
+        // IAM permissions (restricted)
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "iam:CreateRole",
+            "iam:AttachRolePolicy",
+            "iam:PutRolePolicy",
+            "iam:PassRole",
+            "iam:DetachRolePolicy",
+            "iam:DeleteRolePolicy",
+            "iam:GetRole",
+            "iam:GetRolePolicy",
+            "iam:DeleteRole",
+            "iam:TagRole",
+            "iam:UntagRole",
+            "iam:CreateOpenIDConnectProvider",
+            "iam:GetOpenIDConnectProvider",
+            "iam:DeleteOpenIDConnectProvider"
+          ],
+          resources: [
+            `arn:aws:iam::${this.account}:role/${this.stackName}-*`,
+            `arn:aws:iam::${this.account}:oidc-provider/token.actions.githubusercontent.com`
+          ]
+        }),
+        // SSM Parameter Store permissions for reading parameters
+        new iam.PolicyStatement({
+          effect: iam.Effect.ALLOW,
+          actions: [
+            "ssm:GetParameter",
+            "ssm:GetParameters"
+          ],
+          resources: [
+            `arn:aws:ssm:${this.region}:${this.account}:parameter/cdk-bootstrap/*`
+          ]
+        })
+      ]
+    });
 
-    // Additional policy for CDK operations
-    githubActionsRole.addToPolicy(
-      new iam.PolicyStatement({
-        effect: iam.Effect.ALLOW,
-        actions: [
-          "iam:CreateRole",
-          "iam:AttachRolePolicy",
-          "iam:PutRolePolicy",
-          "iam:PassRole",
-          "iam:DetachRolePolicy",
-          "iam:DeleteRolePolicy",
-          "iam:GetRole",
-          "iam:GetRolePolicy",
-          "iam:DeleteRole",
-          "iam:TagRole",
-          "iam:UntagRole",
-        ],
-        resources: ["*"],
-      })
-    );
+    githubActionsRole.attachInlinePolicy(new iam.Policy(this, 'CDKDeployPolicy', {
+      document: cdkDeployPolicy
+    }));
 
     // Output the role ARN for GitHub Actions secret
     new cdk.CfnOutput(this, "GitHubActionsRoleArn", {

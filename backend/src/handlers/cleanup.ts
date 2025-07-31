@@ -13,7 +13,9 @@ const BUCKET_NAME = "filelair-files";
 const TABLE_NAME = "filelair";
 
 export async function handler(event: ScheduledEvent): Promise<void> {
-  console.log("Starting cleanup job");
+  if (process.env.NODE_ENV !== 'production') {
+    console.log("Starting cleanup job");
+  }
 
   try {
     const currentTime = Math.floor(Date.now() / 1000);
@@ -31,9 +33,14 @@ export async function handler(event: ScheduledEvent): Promise<void> {
     // Clean up any orphaned records in DynamoDB (backup to TTL)
     await cleanupOrphanedRecords(threeDaysAgo);
 
-    console.log("Cleanup job completed successfully");
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("Cleanup job completed successfully");
+    }
   } catch (error) {
-    console.error("Cleanup job failed:", error);
+    console.error("Cleanup job failed:", {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      // Do not log sensitive details
+    });
     throw error;
   }
 }
@@ -83,7 +90,9 @@ async function cleanupS3Files(
           });
 
           await s3Client.send(deleteCommand);
-          console.log(`Deleted ${keysToDelete.length} expired files from S3`);
+          if (process.env.NODE_ENV !== 'production') {
+            console.log(`Deleted ${keysToDelete.length} expired files from S3`);
+          }
         }
       }
 
@@ -105,7 +114,9 @@ async function cleanupOrphanedRecords(expiryThreshold: number): Promise<void> {
   const result = await dynamoClient.send(scanCommand);
 
   if (result.Items && result.Items.length > 0) {
-    console.log(`Found ${result.Items.length} orphaned DynamoDB records`);
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`Found ${result.Items.length} orphaned DynamoDB records`);
+    }
     // DynamoDB TTL should handle these, but we log them for monitoring
   }
 }

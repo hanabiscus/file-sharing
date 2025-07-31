@@ -52,17 +52,23 @@ export async function createPresignedUploadUrl(
       expiresIn: PRESIGNED_URL_EXPIRY,
     });
 
-    console.log("Generated presigned URL:", {
-      bucket: BUCKET_NAME,
-      keyPrefix: key.substring(0, 20) + "...",
-      contentType: contentType,
-      expiresIn: PRESIGNED_URL_EXPIRY,
-      region: "ap-northeast-1",
-    });
+    // SECURITY: Do not log presigned URLs as they contain temporary credentials
+    if (process.env.NODE_ENV !== 'production') {
+      console.log("Generated presigned upload URL for:", {
+        bucket: BUCKET_NAME,
+        keyPrefix: key.substring(0, 10) + "***",
+        contentType: contentType,
+        // Do not log the actual URL or expiry time
+      });
+    }
 
     return url;
   } catch (error) {
-    console.error("Error generating presigned URL:", error);
+    // Log error without sensitive details
+    console.error("Error generating presigned URL", {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      // Do not log full error object which might contain credentials
+    });
     throw new Error(
       `Failed to generate upload URL: ${
         error instanceof Error ? error.message : "Unknown error"

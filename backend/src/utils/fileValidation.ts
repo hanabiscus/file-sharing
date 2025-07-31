@@ -10,9 +10,10 @@ export interface FileValidationResult {
 }
 
 export function validateFileExtension(filename: string): FileValidationResult {
-  const extension = filename.toLowerCase().match(/\.[^.]*$/)?.[0] || '';
+  // Check for multiple extensions (e.g., malicious.pdf.exe)
+  const parts = filename.toLowerCase().split('.');
   
-  if (!extension) {
+  if (parts.length < 2) {
     return {
       isValid: false,
       error: {
@@ -22,12 +23,34 @@ export function validateFileExtension(filename: string): FileValidationResult {
     };
   }
 
-  if (!UPLOAD_CONFIG.allowedExtensions.includes(extension)) {
+  // Check all extensions, not just the last one
+  const extensions = parts.slice(1).map(ext => `.${ext}`);
+  
+  // Detect double extensions that might be malicious
+  if (extensions.length > 1) {
+    // Check if any extension is executable or dangerous
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.js', '.jar', '.app'];
+    const hasDangerousExtension = extensions.some(ext => dangerousExtensions.includes(ext));
+    
+    if (hasDangerousExtension) {
+      return {
+        isValid: false,
+        error: {
+          code: ErrorCode.INVALID_FILE_TYPE,
+          message: 'Files with multiple extensions including executable types are not allowed'
+        }
+      };
+    }
+  }
+
+  // Validate the final extension
+  const finalExtension = extensions[extensions.length - 1];
+  if (!UPLOAD_CONFIG.allowedExtensions.includes(finalExtension)) {
     return {
       isValid: false,
       error: {
         code: ErrorCode.INVALID_FILE_TYPE,
-        message: `File type ${extension} is not allowed. Allowed types: ${UPLOAD_CONFIG.allowedExtensions.join(', ')}`
+        message: `File type ${finalExtension} is not allowed. Allowed types: ${UPLOAD_CONFIG.allowedExtensions.join(', ')}`
       }
     };
   }
@@ -35,7 +58,53 @@ export function validateFileExtension(filename: string): FileValidationResult {
   return { isValid: true };
 }
 
-export function validateMimeType(mimeType: string): FileValidationResult {
+export function validateMimeType(mimeType: string, filename: string): FileValidationResult {
+  // Validate MIME type format
+  if (mimeType && !mimeType.match(/^[a-zA-Z0-9][a-zA-Z0-9\/+.-]*$/)) {
+    return {
+      isValid: false,
+      error: {
+        code: ErrorCode.INVALID_FILE_TYPE,
+        message: 'Invalid MIME type format'
+      }
+    };
+  }
+
+  // Map of file extensions to expected MIME types
+  const extensionToMimeTypes: Record<string, string[]> = {
+    '.pdf': ['application/pdf'],
+    '.jpg': ['image/jpeg'],
+    '.jpeg': ['image/jpeg'],
+    '.png': ['image/png'],
+    '.gif': ['image/gif'],
+    '.txt': ['text/plain'],
+    '.doc': ['application/msword'],
+    '.docx': ['application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+    '.xls': ['application/vnd.ms-excel'],
+    '.xlsx': ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+    '.zip': ['application/zip', 'application/x-zip-compressed'],
+    '.mp4': ['video/mp4'],
+    '.mp3': ['audio/mpeg', 'audio/mp3']
+  };
+
+  // Get file extension
+  const extension = filename.toLowerCase().match(/\.[^.]*$/)?.[0];
+  
+  if (extension && extensionToMimeTypes[extension]) {
+    // If we know the expected MIME types for this extension, validate against them
+    const expectedTypes = extensionToMimeTypes[extension];
+    
+    if (mimeType && !expectedTypes.includes(mimeType) && mimeType !== 'application/octet-stream') {
+      return {
+        isValid: false,
+        error: {
+          code: ErrorCode.INVALID_FILE_TYPE,
+          message: `MIME type ${mimeType} does not match expected types for ${extension} files`
+        }
+      };
+    }
+  }
+
   // Allow empty MIME type or application/octet-stream as fallback
   if (!mimeType || mimeType === 'application/octet-stream') {
     return { isValid: true };
@@ -81,14 +150,26 @@ export function validateFileSize(size: number): FileValidationResult {
 }
 
 export function validateFile(filename: string, mimeType: string, size: number): FileValidationResult {
+  // Sanitize filename to prevent path traversal
+  const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+  if (sanitizedFilename !== filename) {
+    return {
+      isValid: false,
+      error: {
+        code: ErrorCode.INVALID_FILE_TYPE,
+        message: 'Filename contains invalid characters'
+      }
+    };
+  }
+
   // Validate extension
   const extensionResult = validateFileExtension(filename);
   if (!extensionResult.isValid) {
     return extensionResult;
   }
 
-  // Validate MIME type
-  const mimeResult = validateMimeType(mimeType);
+  // Validate MIME type with filename for consistency check
+  const mimeResult = validateMimeType(mimeType, filename);
   if (!mimeResult.isValid) {
     return mimeResult;
   }

@@ -51,12 +51,15 @@ export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayPr
     const shareId = generateShareId();
     const s3Key = generateS3Key(shareId, fileName);
 
-    console.log('Creating presigned URL for upload:', {
-      shareId,
-      fileName: fileName.substring(0, 50) + (fileName.length > 50 ? '...' : ''),
-      contentType,
-      fileSize
-    });
+    // SECURITY: Log only non-sensitive metadata
+    if (process.env.NODE_ENV !== 'production') {
+      console.log('Processing upload request:', {
+        shareId: shareId.substring(0, 8) + '***',
+        fileNameLength: fileName.length,
+        fileSize,
+        // Do not log actual file names or share IDs
+      });
+    }
 
     // Create presigned URL for upload
     const uploadUrl = await createPresignedUploadUrl(s3Key, contentType);

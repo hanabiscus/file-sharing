@@ -60,7 +60,7 @@ export async function checkRateLimit(
       return { allowed: true, remainingAttempts: MAX_ATTEMPTS };
     }
 
-    // Check attempts
+    // Check attempts - block if already used MAX_ATTEMPTS
     if (record.attempts >= MAX_ATTEMPTS) {
       // Block the user
       await docClient.send(
@@ -80,16 +80,27 @@ export async function checkRateLimit(
       };
     }
 
+    // Calculate remaining attempts BEFORE the current attempt
+    const remainingBeforeThisAttempt = MAX_ATTEMPTS - record.attempts;
+    
+    // If this would be the last attempt, check if we should allow it
+    if (remainingBeforeThisAttempt <= 0) {
+      return {
+        allowed: false,
+        remainingAttempts: 0,
+      };
+    }
+
     return {
       allowed: true,
-      remainingAttempts: MAX_ATTEMPTS - record.attempts,
+      remainingAttempts: remainingBeforeThisAttempt,
     };
   } catch (error) {
     console.error("Rate limit check error:", error);
     // SECURITY: Fail closed to prevent bypass during DynamoDB failures
     return {
       allowed: false,
-      blockedUntil: new Date(Date.now() + 60000), // Block for 1 minute on error
+      blockedUntil: new Date(Date.now() + 15 * 60 * 1000), // Block for 15 minutes on error
     };
   }
 }
