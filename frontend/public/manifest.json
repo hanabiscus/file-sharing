@@ -1,7 +1,7 @@
 {
-  "name": "FileLair - Secure File Sharing",
-  "short_name": "FileLair",
-  "description": "Secure anonymous file sharing with password protection",
+  "name": "fileLair - Secure File Sharing",
+  "short_name": "fileLair",
+  "description": "secure file sharing with password protection",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
@@ -11,7 +11,7 @@
     {
       "src": "/favicon.ico",
       "sizes": "16x16 32x32 48x48",
-      "type": "image/x-icon"
+      "type": "image/png"
     }
   ]
 }
