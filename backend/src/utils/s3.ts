@@ -16,7 +16,7 @@ const s3Client = new S3Client({
   region: "ap-northeast-1",
 });
 const BUCKET_NAME = "filelair-files";
-const PRESIGNED_URL_EXPIRY = 3600; // 1 hour
+const PRESIGNED_URL_EXPIRY = 300; // 5min
 
 export async function uploadFile(
   key: string,
@@ -53,7 +53,7 @@ export async function createPresignedUploadUrl(
     });
 
     // SECURITY: Do not log presigned URLs as they contain temporary credentials
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== "production") {
       console.log("Generated presigned upload URL for:", {
         bucket: BUCKET_NAME,
         keyPrefix: key.substring(0, 10) + "***",
@@ -66,7 +66,7 @@ export async function createPresignedUploadUrl(
   } catch (error) {
     // Log error without sensitive details
     console.error("Error generating presigned URL", {
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: error instanceof Error ? error.message : "Unknown error",
       // Do not log full error object which might contain credentials
     });
     throw new Error(
@@ -80,7 +80,7 @@ export async function createPresignedUploadUrl(
 export async function getPresignedDownloadUrl(
   key: string,
   filename: string,
-  expiresInSeconds: number = 300 // Default 5 minutes, was 1 hour
+  expiresInSeconds: number = 300 // 5min
 ): Promise<string> {
   // RFC 5987 compliant encoding for non-ASCII filenames
   const encodedFilename = encodeURIComponent(filename);

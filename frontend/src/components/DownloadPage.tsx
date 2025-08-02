@@ -74,11 +74,8 @@ const DownloadPage: React.FC = () => {
       const errorMessage = err.response?.data?.error?.message || 'Download failed';
       setError(errorMessage);
       
-      // Extract remaining attempts from error message
-      const attemptsMatch = errorMessage.match(/(\d+) attempts? remaining/);
-      if (attemptsMatch) {
-        setRemainingAttempts(parseInt(attemptsMatch[1]));
-      } else if (errorMessage.includes('Too many failed attempts')) {
+      // Check if rate limited
+      if (errorMessage.includes('Too many failed attempts')) {
         setRemainingAttempts(0);
       }
       
@@ -167,11 +164,6 @@ const DownloadPage: React.FC = () => {
                   className="mt-1 block w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:text-gray-100 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800"
                   placeholder="Enter password"
                 />
-                {remainingAttempts !== null && remainingAttempts > 0 && remainingAttempts < 5 && (
-                  <p className="mt-1 text-sm text-yellow-600 dark:text-yellow-400">
-                    {remainingAttempts} {remainingAttempts === 1 ? 'attempt' : 'attempts'} remaining
-                  </p>
-                )}
                 {remainingAttempts === 0 && (
                   <p className="mt-1 text-sm text-red-600 dark:text-red-400">
                     Too many failed attempts. Please try again later.

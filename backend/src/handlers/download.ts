@@ -121,16 +121,7 @@ export async function handler(
       await recordAttempt(shareId, clientIp, isValidPassword);
 
       if (!isValidPassword) {
-        // After recording the failed attempt, we need to calculate the actual remaining attempts
-        // Since we just recorded a failed attempt, decrease by 1
-        const actualRemaining = rateLimitResult.remainingAttempts
-          ? rateLimitResult.remainingAttempts - 1
-          : 0;
-        const message =
-          actualRemaining > 0
-            ? `Invalid password. ${actualRemaining} attempts remaining.`
-            : "Invalid password. No attempts remaining.";
-        return createErrorResponse(ErrorCode.INVALID_PASSWORD, message, origin);
+        return createErrorResponse(ErrorCode.INVALID_PASSWORD, "Invalid password", origin);
       }
     }
 
