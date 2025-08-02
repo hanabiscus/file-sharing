@@ -105,6 +105,86 @@ export async function checkRateLimit(
   }
 }
 
+// Generic rate limiter for various endpoints
+export async function checkRateLimitGeneric(
+  key: string,
+  windowSeconds: number,
+  maxRequests: number
+): Promise<boolean> {
+  const currentTime = Math.floor(Date.now() / 1000);
+  const windowStart = currentTime - windowSeconds;
+  
+  try {
+    const result = await docClient.send(
+      new GetCommand({
+        TableName: TABLE_NAME,
+        Key: { shareId: key },
+      })
+    );
+
+    if (!result.Item) {
+      // First request
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: {
+            shareId: key,
+            count: 1,
+            windowStart: currentTime,
+            expiresAt: currentTime + windowSeconds,
+          },
+        })
+      );
+      return true;
+    }
+
+    const record = result.Item;
+    
+    // Check if window has expired
+    if (record.windowStart < windowStart) {
+      // Reset counter for new window
+      await docClient.send(
+        new PutCommand({
+          TableName: TABLE_NAME,
+          Item: {
+            shareId: key,
+            count: 1,
+            windowStart: currentTime,
+            expiresAt: currentTime + windowSeconds,
+          },
+        })
+      );
+      return true;
+    }
+
+    // Check if limit exceeded
+    if (record.count >= maxRequests) {
+      return false;
+    }
+
+    // Increment counter
+    await docClient.send(
+      new UpdateCommand({
+        TableName: TABLE_NAME,
+        Key: { shareId: key },
+        UpdateExpression: "SET #count = #count + :one",
+        ExpressionAttributeNames: {
+          "#count": "count",
+        },
+        ExpressionAttributeValues: {
+          ":one": 1,
+        },
+      })
+    );
+
+    return true;
+  } catch (error) {
+    console.error("Generic rate limit check error:", error);
+    // Fail closed
+    return false;
+  }
+}
+
 export async function recordAttempt(
   shareId: string,
   ipAddress: string,

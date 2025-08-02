@@ -79,7 +79,8 @@ export async function createPresignedUploadUrl(
 
 export async function getPresignedDownloadUrl(
   key: string,
-  filename: string
+  filename: string,
+  expiresInSeconds: number = 300 // Default 5 minutes, was 1 hour
 ): Promise<string> {
   // RFC 5987 compliant encoding for non-ASCII filenames
   const encodedFilename = encodeURIComponent(filename);
@@ -95,7 +96,7 @@ export async function getPresignedDownloadUrl(
   };
 
   const command = new GetObjectCommand(params);
-  return getSignedUrl(s3Client, command, { expiresIn: PRESIGNED_URL_EXPIRY });
+  return getSignedUrl(s3Client, command, { expiresIn: expiresInSeconds });
 }
 
 export async function deleteFile(key: string): Promise<void> {

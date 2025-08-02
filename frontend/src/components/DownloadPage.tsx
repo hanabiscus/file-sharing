@@ -42,21 +42,33 @@ const DownloadPage: React.FC = () => {
     setError(null);
 
     try {
-      const response = await axios.post(getApiUrl(`download/${shareId}`), 
+      // Step 1: Get download token
+      const tokenResponse = await axios.post(getApiUrl(`download/${shareId}`), 
         fileInfo?.isPasswordProtected ? { password } : {},
         { 
           headers: { 'Content-Type': 'application/json' }
         }
       );
 
-      if (response.data.success) {
-        // Create a temporary link and click it to download
-        const link = document.createElement('a');
-        link.href = response.data.downloadUrl;
-        link.download = response.data.fileName;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+      if (tokenResponse.data.success && tokenResponse.data.downloadToken) {
+        // Step 2: Use token to get actual download URL
+        const downloadResponse = await axios.post(
+          getApiUrl(`download/${shareId}?token=${tokenResponse.data.downloadToken}`),
+          {},
+          { 
+            headers: { 'Content-Type': 'application/json' }
+          }
+        );
+
+        if (downloadResponse.data.success && downloadResponse.data.downloadUrl) {
+          // Create a temporary link and click it to download
+          const link = document.createElement('a');
+          link.href = downloadResponse.data.downloadUrl;
+          link.download = downloadResponse.data.fileName;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+        }
       }
     } catch (err: any) {
       const errorMessage = err.response?.data?.error?.message || 'Download failed';
