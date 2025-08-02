@@ -195,6 +195,7 @@ export class FileLairStack extends cdk.Stack {
         timeout: cdk.Duration.seconds(30),
         bundling: {
           externalModules: ["@aws-sdk/*"],
+          nodeModules: ["bcrypt"],
         },
       }
     );
