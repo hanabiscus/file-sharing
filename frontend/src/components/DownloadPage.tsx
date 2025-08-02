@@ -24,9 +24,7 @@ const DownloadPage: React.FC = () => {
 
     try {
       const response = await axios.get<FileInfoResponse>(getApiUrl(`file/${shareId}`));
-      if (response.data.success) {
-        setFileInfo(response.data);
-      }
+      setFileInfo(response.data);
     } catch (err: any) {
       const errorMessage = err.response?.data?.error?.message || 'Failed to load file information';
       setError(errorMessage);
