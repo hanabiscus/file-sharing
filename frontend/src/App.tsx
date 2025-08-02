@@ -11,7 +11,7 @@ function App() {
         <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors duration-200">
           <ThemeToggle />
           <header className="fixed top-0 left-0 right-0 z-40 bg-white dark:bg-gray-800 shadow-md backdrop-blur-sm bg-opacity-95 dark:bg-opacity-95 transition-colors duration-200">
-            <div className="max-w-7xl mx-auto px-4 py-4 sm:px-6 lg:px-8">
+            <div className="mx-auto px-4 py-4 sm:px-6 lg:px-8">
               <Link to="/" className="inline-block">
                 <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 hover:text-blue-600 dark:hover:text-blue-400 transition-colors cursor-pointer">
                   fileLair
