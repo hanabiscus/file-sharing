@@ -349,6 +349,7 @@ export class FileLairStack extends cdk.Stack {
           httpStatus: 404,
           responseHttpStatus: 200,
           responsePagePath: "/index.html",
+          ttl: cdk.Duration.seconds(0),
         },
       ],
     });

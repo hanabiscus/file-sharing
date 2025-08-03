@@ -1,19 +1,21 @@
-import React, { useState, useEffect } from 'react';
-import { useParams } from 'react-router-dom';
-import axios from 'axios';
-import { FileInfoResponse } from '../types/api';
-import { formatFileSize } from '../utils/formatters';
-import { getApiUrl } from '../config/api';
-import ErrorMessage from './ErrorMessage';
+import React, { useState, useEffect } from "react";
+import { useParams } from "react-router-dom";
+import axios from "axios";
+import { FileInfoResponse } from "../types/api";
+import { formatFileSize } from "../utils/formatters";
+import { getApiUrl } from "../config/api";
+import ErrorMessage from "./ErrorMessage";
 
 const DownloadPage: React.FC = () => {
   const { shareId } = useParams<{ shareId: string }>();
   const [fileInfo, setFileInfo] = useState<FileInfoResponse | null>(null);
-  const [password, setPassword] = useState('');
+  const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(null);
+  const [remainingAttempts, setRemainingAttempts] = useState<number | null>(
+    null
+  );
 
   useEffect(() => {
     fetchFileInfo();
@@ -23,10 +25,24 @@ const DownloadPage: React.FC = () => {
     if (!shareId) return;
 
     try {
-      const response = await axios.get<FileInfoResponse>(getApiUrl(`file/${shareId}`));
-      setFileInfo(response.data);
+      const response = await axios.get<FileInfoResponse>(
+        getApiUrl(`file/${shareId}`)
+      );
+
+      // Check if the response is actually an error (CloudFront may convert 404 to 200)
+      if (response.data && "error" in response.data) {
+        const errorData = response.data as any;
+        setError(errorData.error?.message || "Failed to load file information");
+      } else if (response.data && response.data.success === false) {
+        // Handle error response with success: false
+        const errorData = response.data as any;
+        setError(errorData.error?.message || "Failed to load file information");
+      } else {
+        setFileInfo(response.data);
+      }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error?.message || 'Failed to load file information';
+      const errorMessage =
+        err.response?.data?.error?.message || "Failed to load file information";
       setError(errorMessage);
     } finally {
       setLoading(false);
@@ -41,26 +57,32 @@ const DownloadPage: React.FC = () => {
 
     try {
       // Step 1: Get download token
-      const tokenResponse = await axios.post(getApiUrl(`download/${shareId}`), 
+      const tokenResponse = await axios.post(
+        getApiUrl(`download/${shareId}`),
         fileInfo?.isPasswordProtected ? { password } : {},
-        { 
-          headers: { 'Content-Type': 'application/json' }
+        {
+          headers: { "Content-Type": "application/json" },
         }
       );
 
       if (tokenResponse.data.success && tokenResponse.data.downloadToken) {
         // Step 2: Use token to get actual download URL
         const downloadResponse = await axios.post(
-          getApiUrl(`download/${shareId}?token=${tokenResponse.data.downloadToken}`),
+          getApiUrl(
+            `download/${shareId}?token=${tokenResponse.data.downloadToken}`
+          ),
           {},
-          { 
-            headers: { 'Content-Type': 'application/json' }
+          {
+            headers: { "Content-Type": "application/json" },
           }
         );
 
-        if (downloadResponse.data.success && downloadResponse.data.downloadUrl) {
+        if (
+          downloadResponse.data.success &&
+          downloadResponse.data.downloadUrl
+        ) {
           // Create a temporary link and click it to download
-          const link = document.createElement('a');
+          const link = document.createElement("a");
           link.href = downloadResponse.data.downloadUrl;
           link.download = downloadResponse.data.fileName;
           document.body.appendChild(link);
@@ -69,17 +91,18 @@ const DownloadPage: React.FC = () => {
         }
       }
     } catch (err: any) {
-      const errorMessage = err.response?.data?.error?.message || 'Download failed';
+      const errorMessage =
+        err.response?.data?.error?.message || "Download failed";
       setError(errorMessage);
-      
+
       // Check if rate limited
-      if (errorMessage.includes('Too many failed attempts')) {
+      if (errorMessage.includes("Too many failed attempts")) {
         setRemainingAttempts(0);
       }
-      
+
       // Clear password on failed attempt
       if (err.response?.status === 401 || err.response?.status === 429) {
-        setPassword('');
+        setPassword("");
       }
     } finally {
       setDownloading(false);
@@ -94,7 +117,11 @@ const DownloadPage: React.FC = () => {
   if (loading) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
-        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6" role="status" aria-label="Loading">
+        <div
+          className="bg-white dark:bg-gray-800 shadow rounded-lg p-6"
+          role="status"
+          aria-label="Loading"
+        >
           <div className="animate-pulse">
             <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-1/4 mb-4"></div>
             <div className="h-4 bg-gray-200 dark:bg-gray-700 rounded w-3/4"></div>
@@ -108,7 +135,9 @@ const DownloadPage: React.FC = () => {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">File Not Found</h2>
+          <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
+            File Not Found
+          </h2>
           <ErrorMessage message={error} />
           <div className="mt-4">
             <a
@@ -126,31 +155,46 @@ const DownloadPage: React.FC = () => {
   return (
     <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
       <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
-        <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">Download File</h2>
+        <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">
+          Download File
+        </h2>
 
         {fileInfo && (
           <div className="space-y-4">
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-              <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">{fileInfo.fileName}</h3>
+              <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-2">
+                {fileInfo.fileName}
+              </h3>
               <dl className="space-y-1 text-sm">
                 <div className="flex justify-between">
                   <dt className="text-gray-500 dark:text-gray-400">Size:</dt>
-                  <dd className="text-gray-900 dark:text-gray-100">{formatFileSize(fileInfo.fileSize)}</dd>
+                  <dd className="text-gray-900 dark:text-gray-100">
+                    {formatFileSize(fileInfo.fileSize)}
+                  </dd>
                 </div>
                 <div className="flex justify-between">
-                  <dt className="text-gray-500 dark:text-gray-400">Uploaded:</dt>
-                  <dd className="text-gray-900 dark:text-gray-100">{formatDate(fileInfo.uploadedAt)}</dd>
+                  <dt className="text-gray-500 dark:text-gray-400">
+                    Uploaded:
+                  </dt>
+                  <dd className="text-gray-900 dark:text-gray-100">
+                    {formatDate(fileInfo.uploadedAt)}
+                  </dd>
                 </div>
                 <div className="flex justify-between">
                   <dt className="text-gray-500 dark:text-gray-400">Expires:</dt>
-                  <dd className="text-gray-900 dark:text-gray-100">{formatDate(fileInfo.expiresAt)}</dd>
+                  <dd className="text-gray-900 dark:text-gray-100">
+                    {formatDate(fileInfo.expiresAt)}
+                  </dd>
                 </div>
               </dl>
             </div>
 
             {fileInfo.isPasswordProtected && (
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                <label
+                  htmlFor="password"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300"
+                >
                   Password Required
                 </label>
                 <input
@@ -174,10 +218,18 @@ const DownloadPage: React.FC = () => {
 
             <button
               onClick={handleDownload}
-              disabled={downloading || (fileInfo.isPasswordProtected && !password) || remainingAttempts === 0}
+              disabled={
+                downloading ||
+                (fileInfo.isPasswordProtected && !password) ||
+                remainingAttempts === 0
+              }
               className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
-              {downloading ? 'Preparing Download...' : remainingAttempts === 0 ? 'Access Blocked' : 'Download File'}
+              {downloading
+                ? "Preparing Download..."
+                : remainingAttempts === 0
+                ? "Access Blocked"
+                : "Download File"}
             </button>
 
             <div className="text-center">
