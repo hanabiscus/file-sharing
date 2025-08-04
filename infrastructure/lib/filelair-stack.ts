@@ -100,10 +100,7 @@ export class FileLairStack extends cdk.Stack {
             s3.HttpMethods.PUT,
             s3.HttpMethods.HEAD,
           ],
-          allowedOrigins: [
-            "https://dk7lvukl3cd5w.cloudfront.net",
-            "http://localhost:5173", // Development only
-          ],
+          allowedOrigins: ["https://dk7lvukl3cd5w.cloudfront.net"],
           allowedHeaders: [
             "Content-Type",
             "Content-Length",
@@ -217,10 +214,7 @@ export class FileLairStack extends cdk.Stack {
     const api = new apigateway.RestApi(this, "FileSharingApi", {
       restApiName: "fileLair API",
       defaultCorsPreflightOptions: {
-        allowOrigins: [
-          "http://localhost:5173", // Development
-          "https://dk7lvukl3cd5w.cloudfront.net",
-        ],
+        allowOrigins: ["https://dk7lvukl3cd5w.cloudfront.net"],
         allowMethods: ["GET", "POST", "OPTIONS"],
         allowHeaders: [
           "Content-Type",

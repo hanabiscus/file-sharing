@@ -1,10 +1,7 @@
 import { APIGatewayProxyResult } from "aws-lambda";
 
 // Secure CORS origin validation
-const ALLOWED_ORIGINS = [
-  "http://localhost:5173",
-  "https://dk7lvukl3cd5w.cloudfront.net",
-];
+const ALLOWED_ORIGINS = ["https://dk7lvukl3cd5w.cloudfront.net"];
 
 export function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) return false;
