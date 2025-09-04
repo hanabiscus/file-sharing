@@ -57,12 +57,6 @@ const UploadPage: React.FC = () => {
     setError(null);
     setUploadProgress(0);
 
-    // Log upload attempt details for debugging (no sensitive data)
-    console.log('Starting upload:', {
-      fileSize: selectedFile.size,
-      fileType: selectedFile.type,
-      isMobile: /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
-    });
 
     try {
       // Step 1: Request presigned URL from server
@@ -88,10 +82,6 @@ const UploadPage: React.FC = () => {
 
       if (response.data.success && response.data.uploadUrl) {
         // Step 2: Upload file directly to S3 using presigned URL
-        console.log('Uploading to S3:', {
-          fileType: contentType,
-          fileSize: selectedFile.size
-        });
 
         try {
           // Important: Use the exact same content type that was used to generate the presigned URL
@@ -109,14 +99,7 @@ const UploadPage: React.FC = () => {
             timeout: 300000, // 5 minutes
           });
           
-          console.log('S3 upload successful');
         } catch (s3Error: any) {
-          console.error('S3 upload error:', {
-            error: s3Error,
-            response: s3Error.response,
-            status: s3Error.response?.status,
-            data: s3Error.response?.data
-          });
           
           // Re-throw with more specific error message
           if (s3Error.response?.status === 403) {
@@ -141,11 +124,6 @@ const UploadPage: React.FC = () => {
         }
       }
     } catch (err: any) {
-      console.error('Upload failed:', {
-        status: err.response?.status,
-        message: err.message,
-        responseData: err.response?.data
-      });
       
       let errorMessage = 'Upload failed. Please try again.';
       

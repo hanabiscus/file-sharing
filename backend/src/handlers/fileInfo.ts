@@ -4,8 +4,9 @@ import { getFileRecord } from '../utils/dynamodb';
 import { validateEnvironment, createSecureResponse, secureLogger } from '../utils/security';
 import { isValidShareId } from '../utils/crypto';
 import { checkRateLimitGeneric } from '../utils/rateLimiter';
+import { withCSRFProtection } from '../middleware/csrfMiddleware';
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+async function fileInfoHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   const origin = event.headers.origin || event.headers.Origin;
   const sourceIp = event.requestContext.identity.sourceIp || 'unknown';
   
@@ -72,3 +73,6 @@ function createErrorResponse(code: ErrorCode, message: string, origin?: string):
 
   return createSecureResponse(statusCode, response, origin);
 }
+
+// CSRFミドルウェアでラップしてエクスポート
+export const handler = withCSRFProtection(fileInfoHandler);

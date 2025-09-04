@@ -39,9 +39,13 @@ jobs:
 
       - name: CDK Diff
         working-directory: ./infrastructure
+        env:
+          CSRF_ENCRYPTION_KEY: ${{ secrets.CSRF_ENCRYPTION_KEY }}
         run: npm run diff
 
       - name: CDK Deploy
         if: github.ref == 'refs/heads/main' && github.event_name == 'push'
         working-directory: ./infrastructure
+        env:
+          CSRF_ENCRYPTION_KEY: ${{ secrets.CSRF_ENCRYPTION_KEY }}
         run: npm run deploy -- --all --require-approval never

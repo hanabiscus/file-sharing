@@ -99,16 +99,11 @@ export class FileLairStack extends cdk.Stack {
             s3.HttpMethods.GET,
             s3.HttpMethods.PUT,
             s3.HttpMethods.HEAD,
+            s3.HttpMethods.POST,
           ],
-          allowedOrigins: ["https://dk7lvukl3cd5w.cloudfront.net"],
-          allowedHeaders: [
-            "Content-Type",
-            "Content-Length",
-            "Authorization",
-            "x-amz-content-sha256",
-            "x-amz-date",
-          ],
-          exposedHeaders: ["ETag"],
+          allowedOrigins: ["*"],
+          allowedHeaders: ["*"],
+          exposedHeaders: ["ETag", "x-amz-version-id"],
           maxAge: 3600,
         },
       ],
@@ -142,10 +137,17 @@ export class FileLairStack extends cdk.Stack {
     filesBucket.grantReadWrite(lambdaRole);
     filesTable.grantReadWriteData(lambdaRole);
 
+    // Validate CSRF encryption key
+    const csrfEncryptionKey = process.env.CSRF_ENCRYPTION_KEY;
+    if (!csrfEncryptionKey) {
+      throw new Error("CSRF_ENCRYPTION_KEY environment variable must be set");
+    }
+
     // Common Lambda environment
     const environment = {
       S3_BUCKET_NAME: filesBucket.bucketName,
       DYNAMODB_TABLE_NAME: filesTable.tableName,
+      CSRF_ENCRYPTION_KEY: csrfEncryptionKey,
     };
 
     // Lambda functions
@@ -210,6 +212,43 @@ export class FileLairStack extends cdk.Stack {
       },
     });
 
+    // CSRF Token Initialize Function
+    const initCsrfFunction = new nodejs.NodejsFunction(
+      this,
+      "InitCsrfFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        handler: "handler",
+        entry: path.join(__dirname, "../../backend/src/handlers/initCsrf.ts"),
+        environment,
+        role: lambdaRole,
+        timeout: cdk.Duration.seconds(30),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+      }
+    );
+
+    // CSRF Authorizer Function
+    const csrfAuthorizerFunction = new nodejs.NodejsFunction(
+      this,
+      "CsrfAuthorizerFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        handler: "handler",
+        entry: path.join(
+          __dirname,
+          "../../backend/src/handlers/csrfAuthorizer.ts"
+        ),
+        environment,
+        role: lambdaRole,
+        timeout: cdk.Duration.seconds(10),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+        },
+      }
+    );
+
     // API Gateway
     const api = new apigateway.RestApi(this, "FileSharingApi", {
       restApiName: "fileLair API",
@@ -221,19 +260,42 @@ export class FileLairStack extends cdk.Stack {
           "X-Amz-Date",
           "Authorization",
           "X-Api-Key",
+          "X-CSRF-Token",
         ],
         allowCredentials: true,
       },
       binaryMediaTypes: ["multipart/form-data"],
     });
 
+    // Create CSRF Authorizer
+    const csrfAuthorizer = new apigateway.RequestAuthorizer(
+      this,
+      "CsrfAuthorizer",
+      {
+        handler: csrfAuthorizerFunction,
+        authorizerName: "CSRFAuthorizer",
+        identitySources: [apigateway.IdentitySource.header("X-CSRF-Token")],
+        resultsCacheTtl: cdk.Duration.seconds(0), // CSRFトークンをキャッシュしない
+      }
+    );
+
     // API routes
     const apiResource = api.root.addResource("api");
+
+    // CSRF初期化エンドポイント（認証不要）
+    const initCsrfResource = apiResource.addResource("init-csrf");
+    initCsrfResource.addMethod(
+      "GET",
+      new apigateway.LambdaIntegration(initCsrfFunction)
+    );
 
     const uploadResource = apiResource.addResource("upload");
     uploadResource.addMethod(
       "POST",
-      new apigateway.LambdaIntegration(uploadFunction)
+      new apigateway.LambdaIntegration(uploadFunction),
+      {
+        authorizer: csrfAuthorizer,
+      }
     );
 
     const fileResource = apiResource
@@ -241,7 +303,10 @@ export class FileLairStack extends cdk.Stack {
       .addResource("{shareId}");
     fileResource.addMethod(
       "GET",
-      new apigateway.LambdaIntegration(fileInfoFunction)
+      new apigateway.LambdaIntegration(fileInfoFunction),
+      {
+        authorizer: csrfAuthorizer,
+      }
     );
 
     const downloadResource = apiResource
@@ -249,7 +314,10 @@ export class FileLairStack extends cdk.Stack {
       .addResource("{shareId}");
     downloadResource.addMethod(
       "POST",
-      new apigateway.LambdaIntegration(downloadFunction)
+      new apigateway.LambdaIntegration(downloadFunction),
+      {
+        authorizer: csrfAuthorizer,
+      }
     );
 
     // EventBridge rule for cleanup

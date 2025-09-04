@@ -7,8 +7,9 @@ import { saveFileRecord } from '../utils/dynamodb';
 import { createPresignedUploadUrl } from '../utils/s3';
 import { createSecureResponse, validateEnvironment, secureLogger } from '../utils/security';
 import { validatePasswordStrength } from '../utils/passwordValidator';
+import { withCSRFProtection } from '../middleware/csrfMiddleware';
 
-export async function handler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
+async function uploadHandler(event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> {
   const origin = event.headers.origin || event.headers.Origin;
   
   try {
@@ -126,3 +127,6 @@ function createErrorResponse(code: ErrorCode, message: string, origin?: string):
 
   return createSecureResponse(400, response, origin);
 }
+
+// CSRFミドルウェアでラップしてエクスポート
+export const handler = withCSRFProtection(uploadHandler);

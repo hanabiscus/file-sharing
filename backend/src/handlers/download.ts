@@ -9,8 +9,9 @@ import {
   validateEnvironment,
   secureLogger,
 } from "../utils/security";
+import { withCSRFProtection } from "../middleware/csrfMiddleware";
 
-export async function handler(
+async function downloadHandler(
   event: APIGatewayProxyEvent
 ): Promise<APIGatewayProxyResult> {
   const origin = event.headers.origin || event.headers.Origin;
@@ -253,3 +254,6 @@ function createErrorResponse(
 
   return createSecureResponse(statusCode, response, origin);
 }
+
+// CSRFミドルウェアでラップしてエクスポート
+export const handler = withCSRFProtection(downloadHandler);
