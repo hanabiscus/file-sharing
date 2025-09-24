@@ -150,14 +150,24 @@ export function validateFileSize(size: number): FileValidationResult {
 }
 
 export function validateFile(filename: string, mimeType: string, size: number): FileValidationResult {
-  // Sanitize filename to prevent path traversal
-  const sanitizedFilename = filename.replace(/[^a-zA-Z0-9._-]/g, '_');
-  if (sanitizedFilename !== filename) {
+  // Check for path traversal attempts
+  if (filename.includes('../') || filename.includes('..\\') || filename.includes('/') || filename.includes('\\')) {
     return {
       isValid: false,
       error: {
         code: ErrorCode.INVALID_FILE_TYPE,
-        message: 'Filename contains invalid characters'
+        message: 'Filename contains path traversal characters'
+      }
+    };
+  }
+  
+  // Check for null bytes or other dangerous characters
+  if (filename.includes('\0') || filename.includes('\n') || filename.includes('\r') || filename.includes('\t')) {
+    return {
+      isValid: false,
+      error: {
+        code: ErrorCode.INVALID_FILE_TYPE,
+        message: 'Filename contains invalid control characters'
       }
     };
   }

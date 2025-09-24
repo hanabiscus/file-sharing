@@ -8,7 +8,6 @@ export function withCSRFProtection(
   return async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
     // CSRF検証
     if (!validateCSRFToken(event)) {
-      const origin = event.headers.origin || event.headers.Origin;
       const response: ErrorResponse = {
         success: false,
         error: {
@@ -21,7 +20,7 @@ export function withCSRFProtection(
         statusCode: 403,
         headers: addSecurityHeaders({
           'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': origin || '*',
+          'Access-Control-Allow-Origin': 'https://dk7lvukl3cd5w.cloudfront.net',
           'Access-Control-Allow-Credentials': 'true',
         }),
         body: JSON.stringify(response),

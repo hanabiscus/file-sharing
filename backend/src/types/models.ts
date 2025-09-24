@@ -8,6 +8,9 @@ export interface FileRecord {
   uploadedAt: number; // Unix timestamp
   expiresAt: number; // Unix timestamp (TTL)
   downloadCount: number;
+  scanStatus?: 'pending' | 'scanning' | 'clean' | 'infected' | 'error';
+  scanDate?: number; // Unix timestamp
+  scanResult?: string; // JSON string with malware findings
 }
 
 export interface UploadConfig {

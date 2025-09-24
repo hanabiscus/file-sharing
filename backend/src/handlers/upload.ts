@@ -93,7 +93,8 @@ async function uploadHandler(event: APIGatewayProxyEvent): Promise<APIGatewayPro
       passwordHash,
       uploadedAt: currentTime,
       expiresAt,
-      downloadCount: 0
+      downloadCount: 0,
+      scanStatus: 'pending'
     };
 
     await saveFileRecord(fileRecord);

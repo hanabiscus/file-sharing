@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
-import { FileInfoResponse } from "../types/api";
+import { FileInfoResponse, ErrorCode, ErrorResponse } from "../types/api";
 import { formatFileSize } from "../utils/formatters";
 import { getApiUrl } from "../config/api";
 import ErrorMessage from "./ErrorMessage";
@@ -13,6 +13,7 @@ const DownloadPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<ErrorCode | null>(null);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(
     null
   );
@@ -54,6 +55,7 @@ const DownloadPage: React.FC = () => {
 
     setDownloading(true);
     setError(null);
+    setErrorCode(null);
 
     try {
       // Step 1: Get download token
@@ -64,6 +66,26 @@ const DownloadPage: React.FC = () => {
           headers: { "Content-Type": "application/json" },
         }
       );
+
+      // Check if response indicates an error (even with 2xx status)
+      if (!tokenResponse.data.success) {
+        const errorResponse = tokenResponse.data as ErrorResponse;
+        const errorMessage = errorResponse.error?.message || "Download failed";
+        const code = errorResponse.error?.code;
+        
+        setError(errorMessage);
+        setErrorCode(code as ErrorCode || null);
+        
+        // Handle specific error codes
+        if (code === ErrorCode.RATE_LIMITED) {
+          setRemainingAttempts(0);
+        }
+        if (code === ErrorCode.INVALID_PASSWORD) {
+          setPassword("");
+        }
+        
+        return; // Exit early for error responses
+      }
 
       if (tokenResponse.data.success && tokenResponse.data.downloadToken) {
         // Step 2: Use token to get actual download URL
@@ -76,6 +98,17 @@ const DownloadPage: React.FC = () => {
             headers: { "Content-Type": "application/json" },
           }
         );
+
+        // Also check download response for errors
+        if (!downloadResponse.data.success) {
+          const errorResponse = downloadResponse.data as ErrorResponse;
+          const errorMessage = errorResponse.error?.message || "Download failed";
+          const code = errorResponse.error?.code;
+          
+          setError(errorMessage);
+          setErrorCode(code as ErrorCode || null);
+          return;
+        }
 
         if (
           downloadResponse.data.success &&
@@ -91,17 +124,20 @@ const DownloadPage: React.FC = () => {
         }
       }
     } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.error?.message || "Download failed";
+      const errorResponse = err.response?.data as ErrorResponse;
+      const errorMessage = errorResponse?.error?.message || "Download failed";
+      const code = errorResponse?.error?.code;
+      
       setError(errorMessage);
+      setErrorCode(code as ErrorCode || null);
 
       // Check if rate limited
-      if (errorMessage.includes("Too many failed attempts")) {
+      if (code === ErrorCode.RATE_LIMITED || errorMessage.includes("Too many failed attempts")) {
         setRemainingAttempts(0);
       }
 
       // Clear password on failed attempt
-      if (err.response?.status === 401 || err.response?.status === 429) {
+      if (code === ErrorCode.INVALID_PASSWORD || err.response?.status === 401 || err.response?.status === 429) {
         setPassword("");
       }
     } finally {
@@ -214,14 +250,15 @@ const DownloadPage: React.FC = () => {
               </div>
             )}
 
-            {error && <ErrorMessage message={error} />}
+            {error && <ErrorMessage message={error} code={errorCode} />}
 
             <button
               onClick={handleDownload}
               disabled={
                 downloading ||
                 (fileInfo.isPasswordProtected && !password) ||
-                remainingAttempts === 0
+                remainingAttempts === 0 ||
+                errorCode === ErrorCode.ACCESS_DENIED
               }
               className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
@@ -229,6 +266,10 @@ const DownloadPage: React.FC = () => {
                 ? "Preparing Download..."
                 : remainingAttempts === 0
                 ? "Access Blocked"
+                : errorCode === ErrorCode.ACCESS_DENIED
+                ? "File Unavailable"
+                : errorCode === ErrorCode.SCAN_PENDING
+                ? "Scan in Progress"
                 : "Download File"}
             </button>
 

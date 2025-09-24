@@ -13,7 +13,8 @@ FileLair は、AWS サーバーレスアーキテクチャで構築されたセ�
 - 🚀 **高速転送** - S3 への直接アップロード/ダウンロード
 - 📱 **レスポンシブデザイン** - モバイル・デスクトップ対応
 - 🌙 **ダークモード** - システム設定連動のテーマ切り替え
-- 📊 **リアルタイム進捗** - アップロード/ダウンロードの進捗表示
+- 🦠 **マルウェア保護** - Amazon GuardDuty によるリアルタイムマルウェアスキャン
+- 🛡️ **CSRF保護** - トークンベースのクロスサイトリクエストフォージェリ対策
 
 ## アーキテクチャ
 
@@ -30,9 +31,11 @@ graph TB
     L2[Download Lambda]
     L3[FileInfo Lambda]
     L4[Cleanup Lambda]
+    L5[ScanResult Lambda]
     S3F[S3 Bucket<br/>ファイルストレージ]
     DDB[DynamoDB<br/>メタデータ]
-    EB[EventBridge<br/>日次クリーンアップ]
+    EB[EventBridge<br/>日次クリーンアップ<br/>マルウェアスキャン結果]
+    GD[GuardDuty<br/>Malware Protection]
 
     U -->|HTTPS| CF
     CF -->|静的コンテンツ| S3W
@@ -43,15 +46,22 @@ graph TB
     APIGW -->|POST /download/id| L2
     APIGW -->|GET /file/id| L3
 
-    L1 -->|メタデータ保存| DDB
+    L1 -->|メタデータ保存<br/>scanStatus: pending| DDB
     L1 -->|署名付きURL| S3F
     L2 -->|メタデータ取得| DDB
     L2 -->|署名付きURL| S3F
     L3 -->|メタデータ取得| DDB
 
+    S3F -->|オブジェクト作成時<br/>自動スキャン| GD
+    GD -->|スキャン結果タグ| S3F
+    S3F -->|タグ追加イベント| EB
+
     EB -->|日次トリガー| L4
+    EB -->|マルウェア検出| L5
     L4 -->|スキャン| DDB
     L4 -->|削除| S3F
+    L5 -->|スキャンステータス更新| DDB
+    L5 -->|感染ファイル削除| S3F
 
     U -.->|直接アップロード<br/>署名付きURL| S3F
     U -.->|直接ダウンロード<br/>署名付きURL| S3F
@@ -62,10 +72,12 @@ graph TB
     style L2 fill:#ff9900
     style L3 fill:#ff9900
     style L4 fill:#ff9900
+    style L5 fill:#ff9900
     style S3W fill:#569a31
     style S3F fill:#569a31
     style DDB fill:#4b53bc
     style EB fill:#ff9900
+    style GD fill:#00a4ca
 ```
 
 ### 技術スタック
@@ -77,7 +89,6 @@ graph TB
 - Tailwind CSS（レスポンシブデザイン）
 - React Router（ルーティング）
 - Axios（API 通信）
-- リアルタイム進捗トラッキング
 
 **バックエンド:**
 
@@ -91,9 +102,10 @@ graph TB
 **インフラストラクチャ:**
 
 - AWS CDK v2（Infrastructure as Code）
-- EventBridge（定期クリーンアップ）
+- EventBridge（定期クリーンアップ、マルウェアスキャン結果処理）
 - GitHub Actions（CI/CD パイプライン）
 - AWS OIDC（セキュアなデプロイメント認証）
+- Amazon GuardDuty（マルウェア保護）
 
 ## セキュリティ仕様
 
@@ -108,7 +120,7 @@ graph TB
   - 数字（0-9）
   - 特殊文字（!@#$%^&\*()\_+-=[]{}|;:,.<>?）
 - 制限事項:
-  - 同一文字の連続は 3 文字まで
+  - 同一文字の連続は 3 文字まで（4 文字以上はブロック）
   - キーボードパターン（qwerty、12345 など）を禁止
   - 一般的な単語（password、admin など）を禁止
 
@@ -125,18 +137,17 @@ graph TB
 
 ### 2. レート制限とブルートフォース対策
 
-**制限メカニズム:**
+**パスワード制限メカニズム:**
 
 - ファイルごと、IP アドレスごとに最大 5 回の試行を許可
 - 1 時間のスライディングウィンドウで試行回数を追跡
 - 制限超過後は 15 分間のロックアウト
 - API Gateway 検証済み IP アドレスを使用（なりすまし防止）
 
-**エラー時の動作:**
+**パスワードを間違った際の動作:**
 
 - DynamoDB エラー時はフェイルクローズ（アクセス拒否）
 - 残り試行回数をユーザーに表示
-- ロックアウト時は解除時刻を表示
 
 ### 3. ファイル検証とセキュリティ
 
@@ -146,7 +157,7 @@ graph TB
   - ドキュメント: .txt, .pdf, .doc, .docx, .xls, .xlsx, .ppt, .pptx
   - 画像: .jpg, .jpeg, .png, .gif, .bmp, .svg, .webp
   - 音声: .mp3, .wav, .ogg
-  - 動画: .mp4, .avi, .mov, .mkv
+  - 動画: .mp4, .avi, .mov
   - アーカイブ: .zip, .rar, .7z, .tar, .gz
 
 **多重拡張子検出:**
@@ -162,7 +173,6 @@ graph TB
 
 **ファイル名サニタイゼーション:**
 
-- 英数字、ピリオド、ハイフン、アンダースコアのみ許可
 - パストラバーサル攻撃を防止
 - 特殊文字は自動的にアンダースコアに置換
 
@@ -207,9 +217,9 @@ graph TB
 
 **ShareID 生成:**
 
-- 暗号学的に安全な 16 バイトのランダム値
-- 32 文字の 16 進数文字列（128 ビットのエントロピー）
-- 推測困難性: 2^128 の可能な組み合わせ
+- 暗号学的に安全な 24 バイトのランダム値
+- 32 文字の base64url 文字列（192 ビットのエントロピー）
+- 推測困難性: 2^192 の可能な組み合わせ
 
 **S3 キー構造:**
 
@@ -220,8 +230,8 @@ graph TB
 
 **署名付き URL:**
 
-- アップロード用: 1 時間の有効期限
-- ダウンロード用: 1 時間の有効期限
+- アップロード用: 5 分の有効期限
+- ダウンロード用: 5 分の有効期限
 - ファイルごとに独立したアクセス制御
 - 直接的な S3 アクセスで高速転送を実現
 
@@ -231,24 +241,34 @@ graph TB
 - ディレクトリリスティング不可
 - S3 バケットは完全にパブリックアクセスをブロック
 
-### 7. ログとモニタリング
+### 7. マルウェア保護（Amazon GuardDuty）
 
-**ログポリシー:**
+**スキャン機能:**
 
-- センシティブ情報の自動マスキング
-  - 完全な ShareID（最初の 8 文字のみ表示）
-  - プリサインド URL
-  - ファイル名
-  - IP アドレス（レート制限後は破棄）
-  - パスワード（ハッシュ化前後とも）
-- 本番環境では最小限のログ出力
-- 開発環境でのみ詳細ログを有効化
+- アップロードされたファイルの自動マルウェアスキャン
+- 既知のマルウェア、トロイの木馬、ランサムウェアなどを検出
+- 最大 5GB までのファイルをサポート
 
-**エラーハンドリング:**
+**検出時の動作:**
 
-- ユーザーフレンドリーなエラーメッセージ
-- 内部エラーの詳細は露出しない
-- ネットワークエラーの検出と再試行ガイダンス
+- **感染ファイル**: 自動的に S3 から削除され、アクセス不可に
+- **スキャン中**: ダウンロードは一時的に保留（202 ステータス）
+- **クリーンファイル**: 通常通りダウンロード可能
+
+### 8. CSRF保護（Cross-Site Request Forgery Protection）
+
+**実装方式:**
+
+- 二重送信Cookieパターン（Double Submit Cookie）
+- トークンはAES-256-GCMで暗号化してCookieに保存
+- すべてのPOST/PUT/DELETE/PATCHリクエストで検証
+
+**セキュリティ対策:**
+
+- HttpOnly, Secure, SameSite=Strict Cookieで保存
+- タイミングセーフな比較でタイミング攻撃を防止
+- 24時間のトークン有効期限
+- 自動トークンリフレッシュ機能
 
 ## ユーザー操作フロー
 
@@ -270,8 +290,6 @@ graph TB
 3. **アップロード実行**
 
    - プログレスバーでリアルタイム進捗表示
-   - ネットワークエラー時の自動リトライ
-   - キャンセル可能
 
 4. **共有リンク生成**
    - ワンクリックでクリップボードにコピー
@@ -294,7 +312,6 @@ graph TB
 3. **ダウンロード実行**
    - ワンクリックでダウンロード開始
    - ブラウザの標準ダウンロード機能を使用
-   - 大容量ファイルの進捗表示
 
 ## API エンドポイント
 
@@ -342,6 +359,15 @@ graph TB
 - ファイルメタデータ
 - 適切な Content-Disposition ヘッダー
 
+### GET /api/init-csrf
+
+CSRFトークンの初期化と取得
+
+**レスポンス:**
+
+- `token`: CSRFトークン
+- Set-Cookie: 暗号化されたトークンをHttpOnly Cookieとして設定
+
 ## エラーコード
 
 - `FILE_TOO_LARGE`: ファイルサイズが 100MB を超過
@@ -352,35 +378,10 @@ graph TB
 - `UPLOAD_FAILED`: アップロードプロセスの失敗
 - `STORAGE_ERROR`: S3/DynamoDB 操作の失敗
 - `VALIDATION_ERROR`: 無効なリクエストパラメータ
+- `ACCESS_DENIED`: マルウェア検出によるアクセス拒否
+- `SCAN_PENDING`: マルウェアスキャン実行中
 
 ## 開発
-
-### 前提条件
-
-- Node.js 22.17.1 以上
-- AWS CLI（適切な認証情報で設定済み）
-- AWS CDK CLI v2
-
-### セットアップ
-
-```bash
-# リポジトリのクローン
-git clone https://github.com/hanabiscus/file-sharing.git
-cd file-sharing
-
-# 依存関係のインストール
-npm install
-
-# フロントエンド開発サーバー
-npm run frontend:dev
-
-# ビルド
-npm run frontend:build
-npm run backend:build
-
-# インフラストラクチャのデプロイ
-npm run infra:deploy
-```
 
 ### プロジェクト構造
 
@@ -404,24 +405,6 @@ file-sharing/
     └── workflows/       # GitHub Actions CI/CD
 ```
 
-## デプロイメント
-
-### GitHub Actions CI/CD
-
-1. **初回セットアップ**
-
-   ```bash
-   cd infrastructure
-   npm run deploy  # OIDCプロバイダーとIAMロール作成
-   ```
-
-2. **GitHub Secrets 設定**
-
-   - `AWS_ROLE_ARN`: デプロイ出力から取得
-
-3. **自動デプロイ**
-   - main ブランチへのプッシュ: 自動デプロイ
-
 ### インフラストラクチャ
 
 **主要リソース:**
@@ -431,7 +414,8 @@ file-sharing/
 - API Gateway（REST API、CORS 対応）
 - CloudFront（CDN 配信、セキュリティヘッダー）
 - DynamoDB（メタデータ、TTL 有効）
-- EventBridge（日次クリーンアップ）
+- EventBridge（日次クリーンアップ、マルウェアスキャン結果処理）
+- Amazon GuardDuty（マルウェア保護）
 
 **IAM ポリシー:**
 
@@ -447,13 +431,3 @@ file-sharing/
 - ファイルプレビュー機能なし
 - 再開可能アップロードなし
 - ダウンロード回数制限なし（レート制限のみ）
-
-### 開発ガイドライン
-
-- TypeScript の型安全性を維持
-- 既存のコードスタイルに従う
-- セキュリティを最優先に考慮
-
-## セキュリティ報告
-
-セキュリティ上の問題を発見した場合は、公開せずに責任ある開示をお願いします。

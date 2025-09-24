@@ -87,6 +87,34 @@ async function downloadHandler(
       );
     }
 
+    // Check scan status
+    if (fileRecord.scanStatus === 'infected') {
+      return createErrorResponse(
+        ErrorCode.ACCESS_DENIED,
+        "This file has been quarantined due to security concerns",
+        origin,
+        403
+      );
+    }
+
+    if (fileRecord.scanStatus === 'pending' || fileRecord.scanStatus === 'scanning') {
+      return createErrorResponse(
+        ErrorCode.SCAN_PENDING,
+        "File is being scanned for security. Please try again in a few moments.",
+        origin,
+        202
+      );
+    }
+
+    if (fileRecord.scanStatus === 'error') {
+      return createErrorResponse(
+        ErrorCode.ACCESS_DENIED,
+        "File scan encountered an error and access has been denied for security reasons.",
+        origin,
+        403
+      );
+    }
+
     // Check password if protected
     if (fileRecord.passwordHash) {
       const body = event.body ? JSON.parse(event.body) : {};

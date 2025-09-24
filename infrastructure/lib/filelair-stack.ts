@@ -9,6 +9,7 @@ import * as origins from "aws-cdk-lib/aws-cloudfront-origins";
 import * as events from "aws-cdk-lib/aws-events";
 import * as targets from "aws-cdk-lib/aws-events-targets";
 import * as iam from "aws-cdk-lib/aws-iam";
+import * as guardduty from "aws-cdk-lib/aws-guardduty";
 import * as path from "path";
 import { Construct } from "constructs";
 import { FrontendDeployment } from "./frontend-deployment";
@@ -86,6 +87,7 @@ export class FileLairStack extends cdk.Stack {
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       versioned: false,
+      eventBridgeEnabled: true, // Enable EventBridge notifications
       lifecycleRules: [
         {
           id: "delete-old-files",
@@ -101,7 +103,7 @@ export class FileLairStack extends cdk.Stack {
             s3.HttpMethods.HEAD,
             s3.HttpMethods.POST,
           ],
-          allowedOrigins: ["*"],
+          allowedOrigins: ["https://dk7lvukl3cd5w.cloudfront.net"],
           allowedHeaders: ["*"],
           exposedHeaders: ["ETag", "x-amz-version-id"],
           maxAge: 3600,
@@ -325,6 +327,57 @@ export class FileLairStack extends cdk.Stack {
       schedule: events.Schedule.rate(cdk.Duration.days(1)),
     });
     cleanupRule.addTarget(new targets.LambdaFunction(cleanupFunction));
+
+    // GuardDuty Detector with S3 Protection
+    const guardDutyDetector = new guardduty.CfnDetector(this, "GuardDutyDetector", {
+      enable: true,
+      dataSources: {
+        s3Logs: {
+          enable: true
+        }
+      }
+    });
+
+    // Lambda function to process malware scan results
+    const processScanResultFunction = new nodejs.NodejsFunction(
+      this,
+      "ProcessScanResultFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_22_X,
+        handler: "index.handler",
+        entry: path.join(__dirname, "../../backend/src/handlers/scanResult.ts"),
+        bundling: {
+          minify: true,
+          sourceMap: false,
+          target: "es2022",
+        },
+        environment: {
+          DYNAMODB_TABLE_NAME: filesTable.tableName,
+          S3_BUCKET_NAME: filesBucket.bucketName,
+        },
+        timeout: cdk.Duration.minutes(5),
+      }
+    );
+
+    // Grant permissions to process scan result function
+    filesTable.grantWriteData(processScanResultFunction);
+    filesBucket.grantDelete(processScanResultFunction);
+    filesBucket.grantRead(processScanResultFunction);
+
+    // EventBridge rule for S3 object tagging (malware scan results)
+    const scanResultRule = new events.Rule(this, "MalwareScanResultRule", {
+      eventPattern: {
+        source: ["aws.s3"],
+        detailType: ["Object Tags Added"],
+        detail: {
+          bucket: {
+            name: [filesBucket.bucketName]
+          }
+        }
+      }
+    });
+
+    scanResultRule.addTarget(new targets.LambdaFunction(processScanResultFunction));
 
     // S3 bucket for frontend hosting
     const websiteBucket = new s3.Bucket(this, "WebsiteBucket", {
