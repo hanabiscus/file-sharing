@@ -9,11 +9,11 @@ import { DynamoDBClient, ScanCommand } from "@aws-sdk/client-dynamodb";
 const s3Client = new S3Client({});
 const dynamoClient = new DynamoDBClient({});
 
-const BUCKET_NAME = "filelair-files";
-const TABLE_NAME = "filelair";
+const BUCKET_NAME = process.env.BUCKET_NAME || "filelair-files";
+const TABLE_NAME = process.env.TABLE_NAME || "filelair";
 
 export async function handler(event: ScheduledEvent): Promise<void> {
-  if (process.env.NODE_ENV !== 'production') {
+  if (process.env.NODE_ENV !== "production") {
     console.log("Starting cleanup job");
   }
 
@@ -33,12 +33,12 @@ export async function handler(event: ScheduledEvent): Promise<void> {
     // Clean up any orphaned records in DynamoDB (backup to TTL)
     await cleanupOrphanedRecords(threeDaysAgo);
 
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== "production") {
       console.log("Cleanup job completed successfully");
     }
   } catch (error) {
     console.error("Cleanup job failed:", {
-      message: error instanceof Error ? error.message : 'Unknown error',
+      message: error instanceof Error ? error.message : "Unknown error",
       // Do not log sensitive details
     });
     throw error;
@@ -90,7 +90,7 @@ async function cleanupS3Files(
           });
 
           await s3Client.send(deleteCommand);
-          if (process.env.NODE_ENV !== 'production') {
+          if (process.env.NODE_ENV !== "production") {
             console.log(`Deleted ${keysToDelete.length} expired files from S3`);
           }
         }
@@ -114,7 +114,7 @@ async function cleanupOrphanedRecords(expiryThreshold: number): Promise<void> {
   const result = await dynamoClient.send(scanCommand);
 
   if (result.Items && result.Items.length > 0) {
-    if (process.env.NODE_ENV !== 'production') {
+    if (process.env.NODE_ENV !== "production") {
       console.log(`Found ${result.Items.length} orphaned DynamoDB records`);
     }
     // DynamoDB TTL should handle these, but we log them for monitoring

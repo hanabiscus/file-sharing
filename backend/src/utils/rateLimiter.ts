@@ -8,7 +8,7 @@ import {
 
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
-const TABLE_NAME = "filelair";
+const TABLE_NAME = process.env.TABLE_NAME || "filelair";
 
 interface RateLimitRecord {
   pk: string;
@@ -82,7 +82,7 @@ export async function checkRateLimit(
 
     // Calculate remaining attempts BEFORE the current attempt
     const remainingBeforeThisAttempt = MAX_ATTEMPTS - record.attempts;
-    
+
     // If this would be the last attempt, check if we should allow it
     if (remainingBeforeThisAttempt <= 0) {
       return {
@@ -113,7 +113,7 @@ export async function checkRateLimitGeneric(
 ): Promise<boolean> {
   const currentTime = Math.floor(Date.now() / 1000);
   const windowStart = currentTime - windowSeconds;
-  
+
   try {
     const result = await docClient.send(
       new GetCommand({
@@ -139,7 +139,7 @@ export async function checkRateLimitGeneric(
     }
 
     const record = result.Item;
-    
+
     // Check if window has expired
     if (record.windowStart < windowStart) {
       // Reset counter for new window

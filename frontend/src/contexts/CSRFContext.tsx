@@ -1,11 +1,13 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import axios from 'axios';
+import { getApiUrl } from '../config/api';
 
 interface CSRFContextType {
   csrfToken: string | null;
   isLoading: boolean;
   error: string | null;
   refreshToken: () => Promise<void>;
+  needsReload: boolean;
 }
 
 const CSRFContext = createContext<CSRFContextType | undefined>(undefined);
@@ -26,13 +28,14 @@ export const CSRFProvider: React.FC<CSRFProviderProps> = ({ children }) => {
   const [csrfToken, setCSRFToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [needsReload, setNeedsReload] = useState(false);
 
   const refreshToken = async () => {
     try {
       setIsLoading(true);
       setError(null);
       
-      const response = await axios.get('/api/init-csrf', {
+      const response = await axios.get(getApiUrl('init-csrf'), {
         withCredentials: true, // Cookieを送受信するために必要
       });
       
@@ -55,6 +58,7 @@ export const CSRFProvider: React.FC<CSRFProviderProps> = ({ children }) => {
   useEffect(() => {
     refreshToken();
   }, []);
+
 
   // axiosインターセプターを設定
   useEffect(() => {
@@ -86,15 +90,26 @@ export const CSRFProvider: React.FC<CSRFProviderProps> = ({ children }) => {
     const responseInterceptor = axios.interceptors.response.use(
       (response) => response,
       async (error) => {
-        if (error.response?.status === 403 && error.response?.data?.error?.message === 'CSRF validation failed') {
-          // CSRFトークンが無効な場合は再取得
-          await refreshToken();
+        if (error.response?.status === 403) {
+          // 403エラーの場合、CSRF関連エラーかチェック
+          const errorMessage = error.response?.data?.error?.message || 
+                              error.response?.data?.message || 
+                              error.response?.data?.Message || 
+                              JSON.stringify(error.response?.data);
           
-          // 元のリクエストを再試行
-          const originalRequest = error.config;
-          if (!originalRequest._retry) {
-            originalRequest._retry = true;
-            return axios(originalRequest);
+          // CSRF/認証関連のエラーパターンをチェック
+          const isAuthError = errorMessage && (
+            errorMessage.includes('CSRF validation failed') ||
+            errorMessage.includes('authorize') ||
+            errorMessage.includes('denied') ||
+            errorMessage.includes('explicit deny') ||
+            errorMessage.includes('identity-based policy')
+          );
+          
+          if (isAuthError) {
+            // CSRF/認証エラーが発生した場合はリロードが必要であることを通知
+            setNeedsReload(true);
+            setError('Security protection requires a page reload. Please refresh the page to continue.');
           }
         }
         return Promise.reject(error);
@@ -109,7 +124,7 @@ export const CSRFProvider: React.FC<CSRFProviderProps> = ({ children }) => {
   }, [csrfToken]);
 
   return (
-    <CSRFContext.Provider value={{ csrfToken, isLoading, error, refreshToken }}>
+    <CSRFContext.Provider value={{ csrfToken, isLoading, error, refreshToken, needsReload }}>
       {children}
     </CSRFContext.Provider>
   );

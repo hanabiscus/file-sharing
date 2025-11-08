@@ -7,11 +7,12 @@ export default defineConfig({
     port: 5173,
     proxy: {
       "/api": {
-        target: "https://dk7lvukl3cd5w.cloudfront.net",
+        target: "http://localhost:3001",
         changeOrigin: true,
-        secure: true,
+        secure: false,
         rewrite: (path) => path,
       },
     },
   },
+  envDir: "../",
 });

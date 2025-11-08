@@ -11,8 +11,8 @@ const dynamoDbClient = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(dynamoDbClient);
 const s3Client = new S3Client({});
 
-const DYNAMODB_TABLE_NAME = "filelair";
-const S3_BUCKET_NAME = "filelair-files";
+const DYNAMODB_TABLE_NAME = process.env.TABLE_NAME || "filelair";
+const BUCKET_NAME = process.env.BUCKET_NAME || "filelair-files";
 
 interface S3TagEvent {
   version: string;
@@ -41,7 +41,7 @@ export async function handler(
   const bucketName = detail.bucket.name;
   const objectKey = detail.object.key;
 
-  if (bucketName !== S3_BUCKET_NAME) {
+  if (bucketName !== BUCKET_NAME) {
     console.log(`Event is for different bucket: ${bucketName}`);
     return;
   }
@@ -111,7 +111,7 @@ export async function handler(
       console.log(`Deleting file from S3: ${objectKey}`);
       await s3Client.send(
         new DeleteObjectCommand({
-          Bucket: S3_BUCKET_NAME,
+          Bucket: BUCKET_NAME,
           Key: objectKey,
         })
       );

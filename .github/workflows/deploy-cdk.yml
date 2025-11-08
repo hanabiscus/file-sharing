@@ -13,7 +13,12 @@ permissions:
   contents: read
 
 env:
-  NODE_ENV: production
+  NODE_ENV: ${{ vars.NODE_ENV }}
+  FRONTEND_URL: ${{ vars.FRONTEND_URL }}
+  VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+  S3_AWS_REGION: ${{ vars.S3_AWS_REGION }}
+  BUCKET_NAME: ${{ vars.BUCKET_NAME }}
+  TABLE_NAME: ${{ vars.TABLE_NAME }}
 
 jobs:
   deploy:

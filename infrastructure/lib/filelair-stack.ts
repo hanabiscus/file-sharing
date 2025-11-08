@@ -83,7 +83,7 @@ export class FileLairStack extends cdk.Stack {
 
     // S3 bucket for file storage
     const filesBucket = new s3.Bucket(this, "FilesBucket", {
-      bucketName: `filelair-files`,
+      bucketName: process.env.BUCKET_NAME || "filelair-files",
       encryption: s3.BucketEncryption.S3_MANAGED,
       blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
       versioned: false,
@@ -103,7 +103,7 @@ export class FileLairStack extends cdk.Stack {
             s3.HttpMethods.HEAD,
             s3.HttpMethods.POST,
           ],
-          allowedOrigins: ["https://dk7lvukl3cd5w.cloudfront.net"],
+          allowedOrigins: [process.env.FRONTEND_URL || "http://localhost:xxxx"],
           allowedHeaders: ["*"],
           exposedHeaders: ["ETag", "x-amz-version-id"],
           maxAge: 3600,
@@ -115,7 +115,7 @@ export class FileLairStack extends cdk.Stack {
 
     // DynamoDB table for file metadata
     const filesTable = new dynamodb.Table(this, "FilesTable", {
-      tableName: "filelair",
+      tableName: process.env.TABLE_NAME || "filelair",
       partitionKey: {
         name: "shareId",
         type: dynamodb.AttributeType.STRING,
@@ -147,9 +147,12 @@ export class FileLairStack extends cdk.Stack {
 
     // Common Lambda environment
     const environment = {
-      S3_BUCKET_NAME: filesBucket.bucketName,
-      DYNAMODB_TABLE_NAME: filesTable.tableName,
+      BUCKET_NAME: filesBucket.bucketName,
+      TABLE_NAME: filesTable.tableName,
       CSRF_ENCRYPTION_KEY: csrfEncryptionKey,
+      NODE_ENV: process.env.NODE_ENV || "production",
+      FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:xxxx",
+      S3_AWS_REGION: process.env.S3_AWS_REGION || "ap-northeast-1",
     };
 
     // Lambda functions
@@ -255,7 +258,7 @@ export class FileLairStack extends cdk.Stack {
     const api = new apigateway.RestApi(this, "FileSharingApi", {
       restApiName: "fileLair API",
       defaultCorsPreflightOptions: {
-        allowOrigins: ["https://dk7lvukl3cd5w.cloudfront.net"],
+        allowOrigins: [process.env.FRONTEND_URL || "http://localhost:xxxx"],
         allowMethods: ["GET", "POST", "OPTIONS"],
         allowHeaders: [
           "Content-Type",
@@ -329,14 +332,18 @@ export class FileLairStack extends cdk.Stack {
     cleanupRule.addTarget(new targets.LambdaFunction(cleanupFunction));
 
     // GuardDuty Detector with S3 Protection
-    const guardDutyDetector = new guardduty.CfnDetector(this, "GuardDutyDetector", {
-      enable: true,
-      dataSources: {
-        s3Logs: {
-          enable: true
-        }
+    const guardDutyDetector = new guardduty.CfnDetector(
+      this,
+      "GuardDutyDetector",
+      {
+        enable: true,
+        dataSources: {
+          s3Logs: {
+            enable: true,
+          },
+        },
       }
-    });
+    );
 
     // Lambda function to process malware scan results
     const processScanResultFunction = new nodejs.NodejsFunction(
@@ -352,8 +359,8 @@ export class FileLairStack extends cdk.Stack {
           target: "es2022",
         },
         environment: {
-          DYNAMODB_TABLE_NAME: filesTable.tableName,
-          S3_BUCKET_NAME: filesBucket.bucketName,
+          TABLE_NAME: filesTable.tableName,
+          BUCKET_NAME: filesBucket.bucketName,
         },
         timeout: cdk.Duration.minutes(5),
       }
@@ -371,13 +378,15 @@ export class FileLairStack extends cdk.Stack {
         detailType: ["Object Tags Added"],
         detail: {
           bucket: {
-            name: [filesBucket.bucketName]
-          }
-        }
-      }
+            name: [filesBucket.bucketName],
+          },
+        },
+      },
     });
 
-    scanResultRule.addTarget(new targets.LambdaFunction(processScanResultFunction));
+    scanResultRule.addTarget(
+      new targets.LambdaFunction(processScanResultFunction)
+    );
 
     // S3 bucket for frontend hosting
     const websiteBucket = new s3.Bucket(this, "WebsiteBucket", {

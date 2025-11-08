@@ -13,7 +13,7 @@ import { FileRecord } from "../types/models";
 const client = new DynamoDBClient({});
 const docClient = DynamoDBDocumentClient.from(client);
 
-const TABLE_NAME = "filelair";
+const TABLE_NAME = process.env.TABLE_NAME || "filelair";
 
 export async function saveFileRecord(record: FileRecord): Promise<void> {
   const params: PutCommandInput = {
@@ -55,7 +55,7 @@ export async function incrementDownloadCount(shareId: string): Promise<void> {
 
 // Download token management
 export interface DownloadToken {
-  tokenId: string;  // Primary key
+  tokenId: string; // Primary key
   shareId: string;
   createdAt: number;
   expiresAt: number;
@@ -72,11 +72,11 @@ export async function createDownloadToken(
 ): Promise<void> {
   const now = Math.floor(Date.now() / 1000);
   const token = {
-    shareId: `TOKEN#${tokenId}`,  // Use prefix to differentiate from file records
+    shareId: `TOKEN#${tokenId}`, // Use prefix to differentiate from file records
     tokenId,
-    originalShareId: shareId,  // Store the actual shareId separately
+    originalShareId: shareId, // Store the actual shareId separately
     createdAt: now,
-    expiresAt: now + (expirationMinutes * 60),
+    expiresAt: now + expirationMinutes * 60,
     used: false,
     clientIp,
   };
@@ -94,7 +94,7 @@ export async function validateAndConsumeToken(
   clientIp: string
 ): Promise<{ valid: boolean; shareId?: string; error?: string }> {
   const now = Math.floor(Date.now() / 1000);
-  
+
   // Get token
   const params: GetCommandInput = {
     TableName: TABLE_NAME,
@@ -107,22 +107,22 @@ export async function validateAndConsumeToken(
   const token = result.Item as any;
 
   if (!token) {
-    return { valid: false, error: 'Invalid download token' };
+    return { valid: false, error: "Invalid download token" };
   }
 
   // Check if already used
   if (token.used) {
-    return { valid: false, error: 'Download token has already been used' };
+    return { valid: false, error: "Download token has already been used" };
   }
 
   // Check if expired
   if (token.expiresAt < now) {
-    return { valid: false, error: 'Download token has expired' };
+    return { valid: false, error: "Download token has expired" };
   }
 
   // Check IP match (optional - can be disabled for more flexibility)
   if (token.clientIp && token.clientIp !== clientIp) {
-    return { valid: false, error: 'Invalid request origin' };
+    return { valid: false, error: "Invalid request origin" };
   }
 
   // Mark token as used
@@ -132,7 +132,7 @@ export async function validateAndConsumeToken(
       shareId: `TOKEN#${tokenId}`,
     },
     UpdateExpression: "SET used = :true, usedAt = :now",
-    ConditionExpression: "used = :false",  // Ensure atomic operation
+    ConditionExpression: "used = :false", // Ensure atomic operation
     ExpressionAttributeValues: {
       ":true": true,
       ":false": false,
@@ -144,8 +144,8 @@ export async function validateAndConsumeToken(
     await docClient.send(new UpdateCommand(updateParams));
     return { valid: true, shareId: token.originalShareId }; // Return the original shareId
   } catch (error: any) {
-    if (error.name === 'ConditionalCheckFailedException') {
-      return { valid: false, error: 'Download token has already been used' };
+    if (error.name === "ConditionalCheckFailedException") {
+      return { valid: false, error: "Download token has already been used" };
     }
     throw error;
   }

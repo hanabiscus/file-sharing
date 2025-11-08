@@ -1,5 +1,6 @@
 // API configuration
-export const API_BASE_URL = "https://dk7lvukl3cd5w.cloudfront.net/api";
+export const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost:xxxx/api";
 
 export const getApiUrl = (path: string) => {
   // Remove leading slash from path if present

@@ -1,7 +1,7 @@
 import { APIGatewayProxyResult } from "aws-lambda";
 
 // Secure CORS origin validation
-const ALLOWED_ORIGINS = ["https://dk7lvukl3cd5w.cloudfront.net"];
+const ALLOWED_ORIGINS = [process.env.FRONTEND_URL || "http://localhost:xxxx"];
 
 export function isAllowedOrigin(origin: string | undefined): boolean {
   if (!origin) return false;
@@ -39,7 +39,7 @@ export function createSecureResponse(
 
 // Validate required environment variables
 export function validateEnvironment(): void {
-  const required = ["S3_BUCKET_NAME", "DYNAMODB_TABLE_NAME"];
+  const required = ["BUCKET_NAME", "TABLE_NAME"];
   const missing = required.filter((env) => !process.env[env]);
 
   if (missing.length > 0) {

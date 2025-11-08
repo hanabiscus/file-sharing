@@ -13,9 +13,9 @@ import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 // Initialize S3 client with explicit region
 const s3Client = new S3Client({
-  region: "ap-northeast-1",
+  region: process.env.S3_AWS_REGION || "ap-northeast-1",
 });
-const BUCKET_NAME = "filelair-files";
+const BUCKET_NAME = process.env.BUCKET_NAME || "filelair-files";
 const PRESIGNED_URL_EXPIRY = 300; // 5min
 
 export async function uploadFile(
