@@ -13,6 +13,7 @@ import * as guardduty from "aws-cdk-lib/aws-guardduty";
 import * as path from "path";
 import { Construct } from "constructs";
 import { FrontendDeployment } from "./frontend-deployment";
+import { KMSSecretsManagerStack } from "./kms-secrets-manager-stack";
 
 export interface FileLairStackProps extends cdk.StackProps {
   githubOrg: string;
@@ -139,17 +140,14 @@ export class FileLairStack extends cdk.Stack {
     filesBucket.grantReadWrite(lambdaRole);
     filesTable.grantReadWriteData(lambdaRole);
 
-    // Validate CSRF encryption key
-    const csrfEncryptionKey = process.env.CSRF_ENCRYPTION_KEY;
-    if (!csrfEncryptionKey) {
-      throw new Error("CSRF_ENCRYPTION_KEY environment variable must be set");
-    }
+    // KMS + Secrets Manager setup for CSRF encryption
+    const kmsSecretsStack = new KMSSecretsManagerStack(this, "KMSSecretsManager");
 
     // Common Lambda environment
     const environment = {
       BUCKET_NAME: filesBucket.bucketName,
       TABLE_NAME: filesTable.tableName,
-      CSRF_ENCRYPTION_KEY: csrfEncryptionKey,
+      CSRF_SECRET_ARN: kmsSecretsStack.csrfSecret.secretArn,
       NODE_ENV: process.env.NODE_ENV || "production",
       FRONTEND_URL: process.env.FRONTEND_URL || "http://localhost:xxxx",
       S3_AWS_REGION: process.env.S3_AWS_REGION || "ap-northeast-1",
@@ -253,6 +251,20 @@ export class FileLairStack extends cdk.Stack {
         },
       }
     );
+
+    // Grant KMS and Secrets Manager permissions to all Lambda functions
+    const lambdaFunctions = [
+      uploadFunction,
+      downloadFunction,
+      fileInfoFunction,
+      cleanupFunction,
+      initCsrfFunction,
+      csrfAuthorizerFunction,
+    ];
+
+    lambdaFunctions.forEach((func) => {
+      kmsSecretsStack.grantSecretAccess(func);
+    });
 
     // API Gateway
     const api = new apigateway.RestApi(this, "FileSharingApi", {
@@ -370,6 +382,9 @@ export class FileLairStack extends cdk.Stack {
     filesTable.grantWriteData(processScanResultFunction);
     filesBucket.grantDelete(processScanResultFunction);
     filesBucket.grantRead(processScanResultFunction);
+
+    // Grant KMS and Secrets Manager permissions to scan result function
+    kmsSecretsStack.grantSecretAccess(processScanResultFunction);
 
     // EventBridge rule for S3 object tagging (malware scan results)
     const scanResultRule = new events.Rule(this, "MalwareScanResultRule", {

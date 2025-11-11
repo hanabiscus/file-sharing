@@ -1,17 +1,28 @@
 import { APIGatewayRequestAuthorizerHandler, APIGatewayAuthorizerResult } from 'aws-lambda';
-import { validateCSRFToken } from '../utils/csrf';
+import { validateCSRFToken } from '../utils/csrf-secrets';
 
 export const handler: APIGatewayRequestAuthorizerHandler = async (event) => {
   try {
     // API Gatewayプロキシイベントの形式に変換
+    // methodArn例: arn:aws:execute-api:region:account-id:api-id/stage/METHOD/resource-path
+    const arnParts = event.methodArn.split(':');
+    const pathParts = arnParts[5].split('/');
+    const httpMethod = pathParts[2];
+    const resourcePath = pathParts.slice(3).join('/');
+    
     const proxyEvent = {
-      httpMethod: event.methodArn.split(':')[5].split('/')[2],
+      httpMethod: httpMethod,
       headers: event.headers || {},
-      // その他の必要なプロパティ
+      path: `/${resourcePath}`,
+      requestContext: {
+        identity: {
+          sourceIp: event.requestContext?.identity?.sourceIp || 'unknown'
+        }
+      }
     } as any;
     
     // CSRF検証
-    const isValid = validateCSRFToken(proxyEvent);
+    const isValid = await validateCSRFToken(proxyEvent);
     
     // 検証結果に基づいてポリシーを生成
     const policy: APIGatewayAuthorizerResult = {

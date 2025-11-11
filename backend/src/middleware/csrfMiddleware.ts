@@ -1,5 +1,5 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
-import { validateCSRFToken, addSecurityHeaders } from "../utils/csrf";
+import { validateCSRFToken, addSecurityHeaders } from "../utils/csrf-secrets";
 import { ErrorResponse, ErrorCode } from "../types/api";
 
 export function withCSRFProtection(
@@ -9,7 +9,7 @@ export function withCSRFProtection(
     event: APIGatewayProxyEvent
   ): Promise<APIGatewayProxyResult> => {
     // CSRF検証
-    if (!validateCSRFToken(event)) {
+    if (!(await validateCSRFToken(event))) {
       const response: ErrorResponse = {
         success: false,
         error: {
@@ -20,7 +20,7 @@ export function withCSRFProtection(
 
       return {
         statusCode: 403,
-        headers: addSecurityHeaders({
+        headers: await addSecurityHeaders({
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin":
             process.env.FRONTEND_URL || "http://localhost:xxxx",
@@ -34,7 +34,7 @@ export function withCSRFProtection(
     const result = await handler(event);
 
     // レスポンスヘッダーにセキュリティヘッダーを追加
-    result.headers = addSecurityHeaders(result.headers || {});
+    result.headers = await addSecurityHeaders(result.headers || {});
 
     return result;
   };

@@ -14,7 +14,7 @@ FileLair は、AWS サーバーレスアーキテクチャで構築されたセ�
 - 📱 **レスポンシブデザイン** - モバイル・デスクトップ対応
 - 🌙 **ダークモード** - システム設定連動のテーマ切り替え
 - 🦠 **マルウェア保護** - Amazon GuardDuty によるリアルタイムマルウェアスキャン
-- 🛡️ **CSRF保護** - トークンベースのクロスサイトリクエストフォージェリ対策
+- 🛡️ **CSRF 保護** - AWS Secrets Manager + KMS による堅牢なトークン管理とクロスサイトリクエストフォージェリ対策
 
 ## アーキテクチャ
 
@@ -34,6 +34,8 @@ graph TB
     L5[ScanResult Lambda]
     S3F[S3 Bucket<br/>ファイルストレージ]
     DDB[DynamoDB<br/>メタデータ]
+   SM[Secrets Manager<br/>CSRF暗号化キー]
+    KMS[AWS KMS<br/>カスタムキー]
     EB[EventBridge<br/>日次クリーンアップ<br/>マルウェアスキャン結果]
     GD[GuardDuty<br/>Malware Protection]
 
@@ -45,14 +47,18 @@ graph TB
     APIGW -->|POST /upload| L1
     APIGW -->|POST /download/id| L2
     APIGW -->|GET /file/id| L3
+    APIGW -->|GET /init-csrf| REACT
 
     L1 -->|メタデータ保存<br/>scanStatus: pending| DDB
     L1 -->|署名付きURL| S3F
+    L1 -->|CSRF検証<br/>暗号化キー取得| SM
     L2 -->|メタデータ取得| DDB
     L2 -->|署名付きURL| S3F
+    L2 -->|CSRF検証<br/>暗号化キー取得| SM
     L3 -->|メタデータ取得| DDB
+    SM -->|復号| KMS
 
-    S3F -->|オブジェクト作成時<br/>自動スキャン| GD
+    S3F -->|自動スキャン| GD
     GD -->|スキャン結果タグ| S3F
     S3F -->|タグ追加イベント| EB
 
@@ -78,6 +84,8 @@ graph TB
     style DDB fill:#4b53bc
     style EB fill:#ff9900
     style GD fill:#00a4ca
+    style SM fill:#569a31
+    style KMS fill:#c925d1
 ```
 
 ### 技術スタック
@@ -97,6 +105,8 @@ graph TB
 - AWS S3（ファイルストレージ、SSE-S3 暗号化）
 - AWS DynamoDB（メタデータストレージ）
 - AWS CloudFront（CDN 配信）
+- AWS Secrets Manager（CSRF 暗号化キー管理）
+- AWS KMS（カスタムキーによる暗号化）
 - bcrypt（パスワードハッシュ化）
 
 **インフラストラクチャ:**
@@ -106,6 +116,7 @@ graph TB
 - GitHub Actions（CI/CD パイプライン）
 - AWS OIDC（セキュアなデプロイメント認証）
 - Amazon GuardDuty（マルウェア保護）
+- AWS Secrets Manager + KMS（CSRF 暗号化キー管理）
 
 ## セキュリティ仕様
 
@@ -255,20 +266,29 @@ graph TB
 - **スキャン中**: ダウンロードは一時的に保留（202 ステータス）
 - **クリーンファイル**: 通常通りダウンロード可能
 
-### 8. CSRF保護（Cross-Site Request Forgery Protection）
+### 8. CSRF 保護（Cross-Site Request Forgery Protection）
 
 **実装方式:**
 
-- 二重送信Cookieパターン（Double Submit Cookie）
-- トークンはAES-256-GCMで暗号化してCookieに保存
-- すべてのPOST/PUT/DELETE/PATCHリクエストで検証
+- 二重送信 Cookie パターン（Double Submit Cookie）
+- AWS Secrets Manager + KMS による堅牢な暗号化キー管理
+- トークンは AES-256-GCM で暗号化して Cookie に保存
+- すべての POST/PUT/DELETE/PATCH リクエストで検証
 
 **セキュリティ対策:**
 
-- HttpOnly, Secure, SameSite=Strict Cookieで保存
+- **暗号化キー管理**: AWS Secrets Manager + カスタム KMS キーによる最高レベルの暗号化
+- **自動キーローテーション**: 1 年ごとの自動キーローテーション
+- **監査ログ**: CloudWatch Logs による完全な監査証跡
+- HttpOnly, Secure, SameSite=Strict Cookie で保存
 - タイミングセーフな比較でタイミング攻撃を防止
-- 24時間のトークン有効期限
-- 自動トークンリフレッシュ機能
+- 24 時間のトークン有効期限
+
+**複数タブ対応:**
+
+- 403 エラー時の自動トークン再取得・リトライ機能
+- ユーザーに透過的な複数タブでの同時操作サポート
+- シームレスなユーザー体験の提供
 
 ## ユーザー操作フロー
 
@@ -361,12 +381,19 @@ graph TB
 
 ### GET /api/init-csrf
 
-CSRFトークンの初期化と取得
+CSRF トークンの初期化と取得（AWS Secrets Manager + KMS 暗号化）
 
 **レスポンス:**
 
-- `token`: CSRFトークン
-- Set-Cookie: 暗号化されたトークンをHttpOnly Cookieとして設定
+- `token`: CSRF トークン（平文、クライアント側でのヘッダー設定用）
+- Set-Cookie: AES-256-GCM で暗号化されたトークンを HttpOnly Cookie として設定
+
+**セキュリティ機能:**
+
+- AWS Secrets Manager から暗号化キーを取得
+- カスタム KMS キーによる最高レベルの暗号化
+- 24 時間の有効期限
+- 完全な監査ログ記録
 
 ## エラーコード
 
@@ -416,6 +443,8 @@ file-sharing/
 - DynamoDB（メタデータ、TTL 有効）
 - EventBridge（日次クリーンアップ、マルウェアスキャン結果処理）
 - Amazon GuardDuty（マルウェア保護）
+- AWS Secrets Manager（CSRF 暗号化キー管理）
+- AWS KMS（カスタムキーによる最高レベルの暗号化）
 
 **IAM ポリシー:**
 

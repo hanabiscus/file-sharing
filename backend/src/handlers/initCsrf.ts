@@ -1,5 +1,5 @@
 import { APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda';
-import { generateCSRFCookie } from '../utils/csrf';
+import { generateCSRFCookie } from '../utils/csrf-secrets';
 import { createSecureResponse } from '../utils/security';
 
 export const handler: APIGatewayProxyHandler = async (event): Promise<APIGatewayProxyResult> => {
@@ -7,7 +7,7 @@ export const handler: APIGatewayProxyHandler = async (event): Promise<APIGateway
   
   try {
     // CSRFトークンとCookieを生成
-    const { token, cookie } = generateCSRFCookie();
+    const { token, cookie } = await generateCSRFCookie();
     
     const response = createSecureResponse(
       200,
