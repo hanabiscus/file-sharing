@@ -284,12 +284,6 @@ graph TB
 - タイミングセーフな比較でタイミング攻撃を防止
 - 24 時間のトークン有効期限
 
-**複数タブ対応:**
-
-- 403 エラー時の自動トークン再取得・リトライ機能
-- ユーザーに透過的な複数タブでの同時操作サポート
-- シームレスなユーザー体験の提供
-
 ## ユーザー操作フロー
 
 ### ファイルアップロード
@@ -393,7 +387,7 @@ CSRF トークンの初期化と取得（AWS Secrets Manager + KMS 暗号化）
 - AWS Secrets Manager から暗号化キーを取得
 - カスタム KMS キーによる最高レベルの暗号化
 - 24 時間の有効期限
-- 完全な監査ログ記録
+- 監査ログ記録
 
 ## エラーコード
 
@@ -423,15 +417,15 @@ file-sharing/
 │   └── dist/               # ビルド成果物
 ├── backend/                 # Lambda関数
 │   └── src/
-│       ├── handlers/     # APIハンドラー
-│       ├── middleware/   # ミドルウェア（CSRF保護）
-│       ├── types/        # 共通型定義
-│       └── utils/        # ユーティリティ（検証、S3操作等）
-├── infrastructure/        # AWS CDK
-│   ├── bin/              # CDKアプリケーションエントリーポイント
-│   └── lib/              # スタック定義
+│       ├── handlers/       # APIハンドラー
+│       ├── middleware/     # ミドルウェア（CSRF保護）
+│       ├── types/          # 共通型定義
+│       └── utils/          # ユーティリティ（検証、S3操作等）
+├── infrastructure/          # AWS CDK
+│   ├── bin/                # CDKアプリケーションエントリーポイント
+│   └── lib/                # スタック定義
 └── .github/
-    └── workflows/       # GitHub Actions CI/CD
+    └── workflows/           # GitHub Actions CI/CD
 ```
 
 ### インフラストラクチャ
