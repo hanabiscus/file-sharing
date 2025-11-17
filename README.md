@@ -174,7 +174,7 @@ graph TB
 **多重拡張子検出:**
 
 - 実行可能ファイルの偽装を防止（例: file.pdf.exe をブロック）
-- 危険な拡張子リスト: .exe, .bat, .cmd, .com, .pif, .scr, .vbs, .js, .jar, .app
+- 危険な拡張子リスト: .exe, .bat, .cmd, .com, .pif, .scr, .vbs, .js, .jar, .app, .php
 
 **MIME タイプ検証:**
 
@@ -424,9 +424,11 @@ file-sharing/
 ├── backend/                 # Lambda関数
 │   └── src/
 │       ├── handlers/     # APIハンドラー
+│       ├── middleware/   # ミドルウェア（CSRF保護）
 │       ├── types/        # 共通型定義
 │       └── utils/        # ユーティリティ（検証、S3操作等）
 ├── infrastructure/        # AWS CDK
+│   ├── bin/              # CDKアプリケーションエントリーポイント
 │   └── lib/              # スタック定義
 └── .github/
     └── workflows/       # GitHub Actions CI/CD

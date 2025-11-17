@@ -29,7 +29,7 @@ export function validateFileExtension(filename: string): FileValidationResult {
   // Detect double extensions that might be malicious
   if (extensions.length > 1) {
     // Check if any extension is executable or dangerous
-    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.js', '.jar', '.app'];
+    const dangerousExtensions = ['.exe', '.bat', '.cmd', '.com', '.pif', '.scr', '.vbs', '.js', '.jar', '.app', '.php'];
     const hasDangerousExtension = extensions.some(ext => dangerousExtensions.includes(ext));
     
     if (hasDangerousExtension) {
