@@ -100,7 +100,7 @@ graph TB
 
 **バックエンド:**
 
-- AWS Lambda（Node.js 22.x）
+- AWS Lambda（Node.js 20.x）
 - AWS API Gateway（REST API）
 - AWS S3（ファイルストレージ、SSE-S3 暗号化）
 - AWS DynamoDB（メタデータストレージ）

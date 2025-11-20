@@ -155,7 +155,7 @@ export class FileLairStack extends cdk.Stack {
 
     // Lambda functions
     const uploadFunction = new nodejs.NodejsFunction(this, "UploadFunction", {
-      runtime: lambda.Runtime.NODEJS_22_X,
+      runtime: lambda.Runtime.NODEJS_20_X,
       handler: "handler",
       entry: path.join(__dirname, "../../backend/src/handlers/upload.ts"),
       environment,
@@ -172,7 +172,7 @@ export class FileLairStack extends cdk.Stack {
       this,
       "DownloadFunction",
       {
-        runtime: lambda.Runtime.NODEJS_22_X,
+        runtime: lambda.Runtime.NODEJS_20_X,
         handler: "handler",
         entry: path.join(__dirname, "../../backend/src/handlers/download.ts"),
         environment,
@@ -189,7 +189,7 @@ export class FileLairStack extends cdk.Stack {
       this,
       "FileInfoFunction",
       {
-        runtime: lambda.Runtime.NODEJS_22_X,
+        runtime: lambda.Runtime.NODEJS_20_X,
         handler: "handler",
         entry: path.join(__dirname, "../../backend/src/handlers/fileInfo.ts"),
         environment,
@@ -203,7 +203,7 @@ export class FileLairStack extends cdk.Stack {
     );
 
     const cleanupFunction = new nodejs.NodejsFunction(this, "CleanupFunction", {
-      runtime: lambda.Runtime.NODEJS_22_X,
+      runtime: lambda.Runtime.NODEJS_20_X,
       handler: "handler",
       entry: path.join(__dirname, "../../backend/src/handlers/cleanup.ts"),
       environment,
@@ -220,7 +220,7 @@ export class FileLairStack extends cdk.Stack {
       this,
       "InitCsrfFunction",
       {
-        runtime: lambda.Runtime.NODEJS_22_X,
+        runtime: lambda.Runtime.NODEJS_20_X,
         handler: "handler",
         entry: path.join(__dirname, "../../backend/src/handlers/initCsrf.ts"),
         environment,
@@ -237,7 +237,7 @@ export class FileLairStack extends cdk.Stack {
       this,
       "CsrfAuthorizerFunction",
       {
-        runtime: lambda.Runtime.NODEJS_22_X,
+        runtime: lambda.Runtime.NODEJS_20_X,
         handler: "handler",
         entry: path.join(
           __dirname,
@@ -362,7 +362,7 @@ export class FileLairStack extends cdk.Stack {
       this,
       "ProcessScanResultFunction",
       {
-        runtime: lambda.Runtime.NODEJS_22_X,
+        runtime: lambda.Runtime.NODEJS_20_X,
         handler: "index.handler",
         entry: path.join(__dirname, "../../backend/src/handlers/scanResult.ts"),
         bundling: {
