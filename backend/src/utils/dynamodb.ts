@@ -4,9 +4,11 @@ import {
   PutCommand,
   GetCommand,
   UpdateCommand,
+  DeleteCommand,
   PutCommandInput,
   GetCommandInput,
   UpdateCommandInput,
+  DeleteCommandInput,
 } from "@aws-sdk/lib-dynamodb";
 import { FileRecord } from "../types/models";
 
@@ -149,4 +151,15 @@ export async function validateAndConsumeToken(
     }
     throw error;
   }
+}
+
+export async function deleteFileRecord(shareId: string): Promise<void> {
+  const params: DeleteCommandInput = {
+    TableName: TABLE_NAME,
+    Key: {
+      shareId,
+    },
+  };
+
+  await docClient.send(new DeleteCommand(params));
 }

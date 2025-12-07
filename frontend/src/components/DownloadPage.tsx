@@ -18,6 +18,12 @@ const DownloadPage: React.FC = () => {
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(
     null
   );
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deletePassword, setDeletePassword] = useState("");
+  const [showDeletePassword, setShowDeletePassword] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [deleteErrorCode, setDeleteErrorCode] = useState<ErrorCode | null>(null);
 
   useEffect(() => {
     fetchFileInfo();
@@ -144,6 +150,77 @@ const DownloadPage: React.FC = () => {
     } finally {
       setDownloading(false);
     }
+  };
+
+  const handleDeleteClick = () => {
+    setShowDeleteModal(true);
+    setDeletePassword("");
+    setDeleteError(null);
+    setDeleteErrorCode(null);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!shareId) return;
+
+    setDeleting(true);
+    setDeleteError(null);
+    setDeleteErrorCode(null);
+
+    try {
+      const deleteRequest = fileInfo?.isPasswordProtected
+        ? { password: deletePassword }
+        : {};
+
+      const response = await axios.delete(
+        getApiUrl(`files/${shareId}`),
+        {
+          data: deleteRequest,
+          headers: { "Content-Type": "application/json" },
+        }
+      );
+
+      if (response.data.success) {
+        // Hide modal and show success message
+        setShowDeleteModal(false);
+        setError("File has been successfully deleted");
+        setErrorCode(null);
+        // Disable all interactions after successful deletion
+        setFileInfo(null);
+      } else {
+        const errorData = response.data as ErrorResponse;
+        const errorMessage = errorData.error?.message || "Failed to delete file";
+        const code = errorData.error?.code;
+        
+        // Set modal-specific error state instead of page-level error
+        setDeleteError(errorMessage);
+        setDeleteErrorCode(code as ErrorCode || null);
+
+        if (code === ErrorCode.INVALID_PASSWORD) {
+          setDeletePassword("");
+        }
+      }
+    } catch (err: any) {
+      const errorMessage =
+        err.response?.data?.error?.message || "Failed to delete file";
+      const errorCode = err.response?.data?.error?.code;
+      
+      // Set modal-specific error state instead of page-level error
+      setDeleteError(errorMessage);
+      setDeleteErrorCode(errorCode as ErrorCode || null);
+
+      if (errorCode === ErrorCode.INVALID_PASSWORD) {
+        setDeletePassword("");
+      }
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleDeleteCancel = () => {
+    setShowDeleteModal(false);
+    setDeletePassword("");
+    setDeleteError(null);
+    setDeleteErrorCode(null);
   };
 
   const formatDate = (dateString: string) => {
@@ -293,6 +370,18 @@ const DownloadPage: React.FC = () => {
                 : "Download File"}
             </button>
 
+            <button
+              onClick={handleDeleteClick}
+              disabled={
+                deleting ||
+                downloading ||
+                remainingAttempts === 0
+              }
+              className="w-full bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+            >
+              {deleting ? "Deleting..." : "Delete File"}
+            </button>
+
             <div className="text-center">
               <a
                 href="/"
@@ -304,6 +393,96 @@ const DownloadPage: React.FC = () => {
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-lg p-6 max-w-md w-full">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-4">
+              Delete File
+            </h3>
+            
+            <div className="mb-4">
+              <p className="text-gray-700 dark:text-gray-300 mb-2">
+                Are you sure you want to delete this file?
+              </p>
+              <div className="bg-gray-50 dark:bg-gray-700 rounded p-3 text-sm">
+                <p className="font-medium text-gray-900 dark:text-gray-100">
+                  {fileInfo?.fileName}
+                </p>
+                <p className="text-gray-600 dark:text-gray-400">
+                  {formatFileSize(fileInfo?.fileSize || 0)}
+                </p>
+              </div>
+              <p className="text-sm text-red-600 dark:text-red-400 mt-2">
+                ⚠️ This action cannot be undone.
+              </p>
+            </div>
+
+            {fileInfo?.isPasswordProtected && (
+              <div className="mb-4">
+                <label
+                  htmlFor="deletePassword"
+                  className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
+                >
+                  Enter password to confirm deletion
+                </label>
+                <div className="relative">
+                  <input
+                    type={showDeletePassword ? "text" : "password"}
+                    id="deletePassword"
+                    value={deletePassword}
+                    onChange={(e) => setDeletePassword(e.target.value)}
+                    disabled={deleting}
+                    className="block w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500 dark:bg-gray-700 dark:text-gray-100 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800"
+                    placeholder="Enter password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowDeletePassword(!showDeletePassword)}
+                    className="absolute inset-y-0 right-0 px-3 flex items-center"
+                    tabIndex={-1}
+                  >
+                    {showDeletePassword ? (
+                      <svg className="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                      </svg>
+                    ) : (
+                      <svg className="h-5 w-5 text-gray-400 dark:text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {deleteError && (
+              <div className="mb-4">
+                <ErrorMessage message={deleteError} code={deleteErrorCode} />
+              </div>
+            )}
+
+            <div className="flex gap-3">
+              <button
+                onClick={handleDeleteCancel}
+                disabled={deleting}
+                className="flex-1 bg-gray-300 dark:bg-gray-600 text-gray-700 dark:text-gray-300 px-4 py-2 rounded-md hover:bg-gray-400 dark:hover:bg-gray-500 focus:outline-none focus:ring-2 focus:ring-gray-500 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleting || (fileInfo?.isPasswordProtected && !deletePassword)}
+                className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
+              >
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

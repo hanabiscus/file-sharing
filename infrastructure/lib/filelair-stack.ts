@@ -202,6 +202,23 @@ export class FileLairStack extends cdk.Stack {
       }
     );
 
+    const deleteFunction = new nodejs.NodejsFunction(
+      this,
+      "DeleteFunction",
+      {
+        runtime: lambda.Runtime.NODEJS_20_X,
+        handler: "handler",
+        entry: path.join(__dirname, "../../backend/src/handlers/delete.ts"),
+        environment,
+        role: lambdaRole,
+        timeout: cdk.Duration.seconds(30),
+        bundling: {
+          externalModules: ["@aws-sdk/*"],
+          nodeModules: ["bcrypt"],
+        },
+      }
+    );
+
     const cleanupFunction = new nodejs.NodejsFunction(this, "CleanupFunction", {
       runtime: lambda.Runtime.NODEJS_20_X,
       handler: "handler",
@@ -257,6 +274,7 @@ export class FileLairStack extends cdk.Stack {
       uploadFunction,
       downloadFunction,
       fileInfoFunction,
+      deleteFunction,
       cleanupFunction,
       initCsrfFunction,
       csrfAuthorizerFunction,
@@ -332,6 +350,18 @@ export class FileLairStack extends cdk.Stack {
     downloadResource.addMethod(
       "POST",
       new apigateway.LambdaIntegration(downloadFunction),
+      {
+        authorizer: csrfAuthorizer,
+      }
+    );
+
+    // Delete endpoint
+    const filesResource = apiResource
+      .addResource("files")
+      .addResource("{shareId}");
+    filesResource.addMethod(
+      "DELETE",
+      new apigateway.LambdaIntegration(deleteFunction),
       {
         authorizer: csrfAuthorizer,
       }
