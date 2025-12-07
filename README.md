@@ -25,40 +25,40 @@ FileLair は、AWS サーバーレスアーキテクチャで構築されたセ�
 graph TB
     %% ユーザー層
     U[ユーザーブラウザ]
-    
+
     %% フロントエンド配信層
     CF[CloudFront]
     S3W[S3静的サイト]
     REACT[React SPA]
-    
+
     %% API層
     APIGW[API Gateway]
-    
+
     %% Lambda関数群
     subgraph "API Lambda群"
         L1[Upload]
-        L2[Download] 
+        L2[Download]
         L3[FileInfo]
         L6[Delete]
     end
-    
+
     subgraph "システムLambda群"
         L4[Cleanup]
         L5[ScanResult]
     end
-    
+
     %% データストレージ層
     subgraph "データ層"
         DDB[(DynamoDB)]
         S3F[(S3ファイル)]
     end
-    
+
     %% セキュリティ・暗号化層
     subgraph "セキュリティ層"
         SM[Secrets Manager]
         KMS[AWS KMS]
     end
-    
+
     %% 監視・スキャン層
     GD[GuardDuty]
     EB[EventBridge]
@@ -192,7 +192,6 @@ graph TB
 **パスワードを間違った際の動作:**
 
 - DynamoDB エラー時はフェイルクローズ（アクセス拒否）
-- 残り試行回数をユーザーに表示
 
 ### 3. ファイル検証とセキュリティ
 
@@ -352,7 +351,6 @@ graph TB
 
 2. **パスワード入力（必要な場合）**
 
-   - 残り試行回数の表示
    - パスワード表示/非表示トグル
    - エラー時の明確なフィードバック
 

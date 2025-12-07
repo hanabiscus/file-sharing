@@ -257,6 +257,9 @@ const DownloadPage: React.FC = () => {
         // Set modal-specific error state instead of page-level error
         handleDeleteError(errorData, "Failed to delete file");
 
+        if (code === ErrorCode.RATE_LIMITED) {
+          setRemainingAttempts(0);
+        }
         if (code === ErrorCode.INVALID_PASSWORD) {
           setDeletePassword("");
         }
@@ -267,6 +270,9 @@ const DownloadPage: React.FC = () => {
       // Set modal-specific error state instead of page-level error
       handleDeleteError(err, "Failed to delete file");
 
+      if (errorCode === ErrorCode.RATE_LIMITED) {
+        setRemainingAttempts(0);
+      }
       if (errorCode === ErrorCode.INVALID_PASSWORD) {
         setDeletePassword("");
       }
@@ -527,7 +533,7 @@ const DownloadPage: React.FC = () => {
                     id="deletePassword"
                     value={deletePassword}
                     onChange={(e) => setDeletePassword(e.target.value)}
-                    disabled={deleting}
+                    disabled={deleting || remainingAttempts === 0}
                     className="block w-full px-3 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md shadow-sm focus:outline-none focus:ring-red-500 focus:border-red-500 dark:bg-gray-700 dark:text-gray-100 sm:text-sm disabled:bg-gray-100 dark:disabled:bg-gray-800"
                     placeholder="Enter password"
                   />
@@ -572,7 +578,7 @@ const DownloadPage: React.FC = () => {
               </button>
               <button
                 onClick={handleDeleteConfirm}
-                disabled={deleting || (fileInfo?.isPasswordProtected && !deletePassword)}
+                disabled={deleting || (fileInfo?.isPasswordProtected && !deletePassword) || remainingAttempts === 0}
                 className="flex-1 bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
               >
                 {deleting ? "Deleting..." : "Delete"}
