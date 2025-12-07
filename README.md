@@ -2,7 +2,7 @@
 
 ## 概要
 
-FileLair は、AWS サーバーレスアーキテクチャで構築されたセキュアな匿名ファイル共有プラットフォームです。ユーザーはファイルをアップロードし、オプションのパスワード保護付きの安全なリンクで共有できます。プライバシー保護のため、ファイルは 48 時間後に自動的に削除されます。
+FileLair は、AWS サーバーレスアーキテクチャで構築されたセキュアな匿名ファイル共有プラットフォームです。ユーザーはファイルをアップロードし、オプションのパスワード保護付きの安全なリンクで共有できます。プライバシー保護のため、ファイルは 48 時間後に自動的に削除されるほか、ユーザーによる手動削除も可能です。
 
 ### 主な特徴
 
@@ -10,6 +10,7 @@ FileLair は、AWS サーバーレスアーキテクチャで構築されたセ�
 - 🛡️ **エンドツーエンド暗号化** - 転送時・保管時の完全暗号化
 - 🔐 **パスワード保護** - リアルタイム強度表示付きの強力なパスワード保護
 - ⏰ **自動削除** - 48 時間後に自動的にファイルとメタデータを削除
+- 🗑️ **手動削除** - ユーザーによる即座のファイル削除機能
 - 🚀 **高速転送** - S3 への直接アップロード/ダウンロード
 - 📱 **レスポンシブデザイン** - モバイル・デスクトップ対応
 - 🌙 **ダークモード** - システム設定連動のテーマ切り替え
@@ -22,56 +23,88 @@ FileLair は、AWS サーバーレスアーキテクチャで構築されたセ�
 
 ```mermaid
 graph TB
+    %% ユーザー層
     U[ユーザーブラウザ]
-    CF[CloudFront<br/>Distribution]
-    S3W[S3 Bucket<br/>静的ウェブサイト]
+    
+    %% フロントエンド配信層
+    CF[CloudFront]
+    S3W[S3静的サイト]
     REACT[React SPA]
-    APIGW[API Gateway<br/>REST API]
-    L1[Upload Lambda]
-    L2[Download Lambda]
-    L3[FileInfo Lambda]
-    L4[Cleanup Lambda]
-    L5[ScanResult Lambda]
-    S3F[S3 Bucket<br/>ファイルストレージ]
-    DDB[DynamoDB<br/>メタデータ]
-   SM[Secrets Manager<br/>CSRF暗号化キー]
-    KMS[AWS KMS<br/>カスタムキー]
-    EB[EventBridge<br/>日次クリーンアップ<br/>マルウェアスキャン結果]
-    GD[GuardDuty<br/>Malware Protection]
+    
+    %% API層
+    APIGW[API Gateway]
+    
+    %% Lambda関数群
+    subgraph "API Lambda群"
+        L1[Upload]
+        L2[Download] 
+        L3[FileInfo]
+        L6[Delete]
+    end
+    
+    subgraph "システムLambda群"
+        L4[Cleanup]
+        L5[ScanResult]
+    end
+    
+    %% データストレージ層
+    subgraph "データ層"
+        DDB[(DynamoDB)]
+        S3F[(S3ファイル)]
+    end
+    
+    %% セキュリティ・暗号化層
+    subgraph "セキュリティ層"
+        SM[Secrets Manager]
+        KMS[AWS KMS]
+    end
+    
+    %% 監視・スキャン層
+    GD[GuardDuty]
+    EB[EventBridge]
 
+    %% ユーザーフロー
     U -->|HTTPS| CF
     CF -->|静的コンテンツ| S3W
-    CF -->|API リクエスト| APIGW
+    CF -->|API要求| APIGW
     S3W --> REACT
 
-    APIGW -->|POST /upload| L1
-    APIGW -->|POST /download/id| L2
-    APIGW -->|GET /file/id| L3
-    APIGW -->|GET /init-csrf| REACT
+    %% API→Lambda
+    APIGW --> L1
+    APIGW --> L2
+    APIGW --> L3
+    APIGW --> L6
+    APIGW -->|CSRF初期化| REACT
 
-    L1 -->|メタデータ保存<br/>scanStatus: pending| DDB
-    L1 -->|署名付きURL| S3F
-    L1 -->|CSRF検証<br/>暗号化キー取得| SM
-    L2 -->|メタデータ取得| DDB
-    L2 -->|署名付きURL| S3F
-    L2 -->|CSRF検証<br/>暗号化キー取得| SM
-    L3 -->|メタデータ取得| DDB
-    SM -->|復号| KMS
+    %% Lambda→データ層
+    L1 --> DDB
+    L1 --> S3F
+    L2 --> DDB
+    L2 --> S3F
+    L3 --> DDB
+    L6 --> DDB
+    L6 --> S3F
 
+    %% CSRF検証（代表的なもののみ）
+    L1 -.->|CSRF検証| SM
+    L2 -.->|CSRF検証| SM
+    L6 -.->|CSRF検証| SM
+    SM --> KMS
+
+    %% マルウェアスキャンフロー
     S3F -->|自動スキャン| GD
-    GD -->|スキャン結果タグ| S3F
-    S3F -->|タグ追加イベント| EB
+    GD -->|結果通知| EB
+    EB --> L5
+    L5 --> DDB
 
-    EB -->|日次トリガー| L4
-    EB -->|マルウェア検出| L5
-    L4 -->|スキャン| DDB
-    L4 -->|削除| S3F
-    L5 -->|スキャンステータス更新| DDB
-    L5 -->|感染ファイル削除| S3F
+    %% クリーンアップフロー
+    EB -->|日次実行| L4
+    L4 --> S3F
 
-    U -.->|直接アップロード<br/>署名付きURL| S3F
-    U -.->|直接ダウンロード<br/>署名付きURL| S3F
+    %% 直接アップロード/ダウンロード
+    U -.->|署名付きURL| S3F
 
+    %% スタイリング
     style CF fill:#ff9900
     style APIGW fill:#ff9900
     style L1 fill:#ff9900
@@ -79,6 +112,7 @@ graph TB
     style L3 fill:#ff9900
     style L4 fill:#ff9900
     style L5 fill:#ff9900
+    style L6 fill:#ff9900
     style S3W fill:#569a31
     style S3F fill:#569a31
     style DDB fill:#4b53bc
@@ -143,7 +177,7 @@ graph TB
 
 **ハッシュ化:**
 
-- bcrypt アルゴリズム使用（ソルトラウンド: 10）
+- bcrypt アルゴリズム使用
 - ハッシュ結果は 60 文字の安全な形式で保存
 
 ### 2. レート制限とブルートフォース対策
@@ -258,7 +292,6 @@ graph TB
 
 - アップロードされたファイルの自動マルウェアスキャン
 - 既知のマルウェア、トロイの木馬、ランサムウェアなどを検出
-- 最大 5GB までのファイルをサポート
 
 **検出時の動作:**
 
@@ -327,6 +360,24 @@ graph TB
    - ワンクリックでダウンロード開始
    - ブラウザの標準ダウンロード機能を使用
 
+### ファイル削除
+
+1. **削除ボタンクリック**
+
+   - ダウンロードページから「Delete File」ボタンをクリック
+   - 確認モーダルダイアログが表示
+
+2. **削除確認**
+
+   - ファイル名とサイズの再表示
+   - 削除の取り消し不可能性を明示
+   - パスワード保護ファイルはパスワード再入力が必要
+
+3. **即座削除**
+   - 確認後に S3 とメタデータから完全削除
+   - 削除成功メッセージの表示
+   - 以降そのリンクはアクセス不可
+
 ## API エンドポイント
 
 ### POST /api/upload
@@ -373,6 +424,25 @@ graph TB
 - ファイルメタデータ
 - 適切な Content-Disposition ヘッダー
 
+### DELETE /api/files/{shareId}
+
+ファイルの即座削除（ユーザー操作）
+
+**リクエスト:**
+
+- `password`: パスワード（保護されている場合）
+
+**レスポンス:**
+
+- `success`: 削除成功のフラグ
+- 削除確認メッセージ
+
+**セキュリティ機能:**
+
+- パスワード保護されたファイルは削除時もパスワード認証が必要
+- CSRF トークンによる検証
+- 実行後は S3 とメタデータの両方から完全削除
+
 ### GET /api/init-csrf
 
 CSRF トークンの初期化と取得（AWS Secrets Manager + KMS 暗号化）
@@ -397,6 +467,7 @@ CSRF トークンの初期化と取得（AWS Secrets Manager + KMS 暗号化）
 - `INVALID_PASSWORD`: パスワードが正しくない
 - `RATE_LIMITED`: レート制限に到達
 - `UPLOAD_FAILED`: アップロードプロセスの失敗
+- `DELETE_FAILED`: ファイル削除プロセスの失敗
 - `STORAGE_ERROR`: S3/DynamoDB 操作の失敗
 - `VALIDATION_ERROR`: 無効なリクエストパラメータ
 - `ACCESS_DENIED`: マルウェア検出によるアクセス拒否
@@ -433,7 +504,7 @@ file-sharing/
 **主要リソース:**
 
 - S3 バケット（ファイルストレージ、静的ホスティング）
-- Lambda 関数（アップロード、ダウンロード、情報取得、クリーンアップ）
+- Lambda 関数（アップロード、ダウンロード、情報取得、削除、クリーンアップ）
 - API Gateway（REST API、CORS 対応）
 - CloudFront（CDN 配信、セキュリティヘッダー）
 - DynamoDB（メタデータ、TTL 有効）
