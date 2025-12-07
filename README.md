@@ -134,14 +134,14 @@ graph TB
 
 **バックエンド:**
 
-- AWS Lambda（Node.js 20.x）
+- AWS Lambda（Node.js 22.x）
 - AWS API Gateway（REST API）
 - AWS S3（ファイルストレージ、SSE-S3 暗号化）
 - AWS DynamoDB（メタデータストレージ）
 - AWS CloudFront（CDN 配信）
 - AWS Secrets Manager（CSRF 暗号化キー管理）
 - AWS KMS（カスタムキーによる暗号化）
-- bcrypt（パスワードハッシュ化）
+- bcryptjs（パスワードハッシュ化）
 
 **インフラストラクチャ:**
 
