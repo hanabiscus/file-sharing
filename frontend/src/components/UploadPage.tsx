@@ -80,7 +80,7 @@ const UploadPage: React.FC = () => {
         }
       );
 
-      if (response.data.success && response.data.uploadUrl) {
+      if (typeof response.data === 'object' && response.data !== null && response.data.success && response.data.uploadUrl) {
         // Step 2: Upload file directly to S3 using presigned URL
 
         try {
@@ -127,17 +127,22 @@ const UploadPage: React.FC = () => {
       
       let errorMessage = 'Upload failed. Please try again.';
       
+      // Check for specific error conditions first, prioritizing detailed API messages
       if (err.code === 'ECONNABORTED') {
         errorMessage = 'Upload timed out. Please check your connection and try again.';
       } else if (!navigator.onLine) {
         errorMessage = 'No internet connection. Please check your connection and try again.';
-      } else if (err.message) {
-        errorMessage = err.message;
-      } else if (err.response?.data?.error?.message) {
+      } else if (typeof err.response?.data === 'object' && err.response?.data !== null && err.response?.data?.error?.message) {
+        // Prioritize detailed error message from API
         errorMessage = err.response.data.error.message;
+      } else if (err.message) {
+        // Use error message from exception
+        errorMessage = err.message;
       } else if (err.response?.status === 413) {
+        // Fallback for 413 status when no detailed message is available
         errorMessage = 'File too large. Maximum file size is 100MB.';
       } else if (err.response?.status >= 500) {
+        // Fallback for server errors when no detailed message is available
         errorMessage = 'Server error. Please try again later.';
       }
       
