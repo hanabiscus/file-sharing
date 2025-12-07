@@ -5,6 +5,8 @@ import { FileInfoResponse, ErrorCode, ErrorResponse } from "../types/api";
 import { formatFileSize } from "../utils/formatters";
 import { getApiUrl } from "../config/api";
 import ErrorMessage from "./ErrorMessage";
+import SuccessMessage from "./SuccessMessage";
+import { useErrorHandler } from "../hooks/useErrorHandler";
 
 const DownloadPage: React.FC = () => {
   const { shareId } = useParams<{ shareId: string }>();
@@ -13,8 +15,6 @@ const DownloadPage: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(true);
   const [downloading, setDownloading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [errorCode, setErrorCode] = useState<ErrorCode | null>(null);
   const [remainingAttempts, setRemainingAttempts] = useState<number | null>(
     null
   );
@@ -22,8 +22,9 @@ const DownloadPage: React.FC = () => {
   const [deletePassword, setDeletePassword] = useState("");
   const [showDeletePassword, setShowDeletePassword] = useState(false);
   const [deleting, setDeleting] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const [deleteErrorCode, setDeleteErrorCode] = useState<ErrorCode | null>(null);
+  const [deleteSuccess, setDeleteSuccess] = useState(false);
+  const { error, handleAxiosError, clearError } = useErrorHandler();
+  const { error: deleteError, handleAxiosError: handleDeleteError, clearError: clearDeleteError } = useErrorHandler();
 
   useEffect(() => {
     fetchFileInfo();
@@ -32,26 +33,78 @@ const DownloadPage: React.FC = () => {
   const fetchFileInfo = async () => {
     if (!shareId) return;
 
+    // Clear previous data and errors
+    setFileInfo(null);
+    clearError();
+
     try {
       const response = await axios.get<FileInfoResponse>(
         getApiUrl(`file/${shareId}`)
       );
 
       // Check if the response is actually an error (CloudFront may convert 404 to 200)
-      if (response.data && "error" in response.data) {
+      // Case 1: Direct error object structure
+      if (typeof response.data === 'object' && response.data !== null && "error" in response.data) {
         const errorData = response.data as any;
-        setError(errorData.error?.message || "Failed to load file information");
-      } else if (response.data && response.data.success === false) {
-        // Handle error response with success: false
+        // Create a proper error object for handleAxiosError
+        const mockError = {
+          response: {
+            data: errorData,
+            status: errorData.error?.code === 'FILE_NOT_FOUND' ? 404 : 400
+          }
+        };
+        handleAxiosError(mockError, "Failed to load file information");
+      } 
+      // Case 2: Error response with success: false
+      else if (typeof response.data === 'object' && response.data !== null && response.data.success === false) {
         const errorData = response.data as any;
-        setError(errorData.error?.message || "Failed to load file information");
-      } else {
+        // Create a proper error object for handleAxiosError
+        const mockError = {
+          response: {
+            data: errorData,
+            status: errorData.error?.code === 'FILE_NOT_FOUND' ? 404 : 400
+          }
+        };
+        handleAxiosError(mockError, "Failed to load file information");
+      }
+      // Case 3: HTML response from CloudFront (404 converted to 200)
+      else if (typeof response.data === 'string' && (response.data as string).trim().startsWith('<!DOCTYPE html>')) {
+        const mockError = {
+          response: {
+            data: {
+              success: false,
+              error: {
+                code: 'FILE_NOT_FOUND',
+                message: 'File not found or has expired'
+              }
+            },
+            status: 404
+          }
+        };
+        handleAxiosError(mockError, "Failed to load file information");
+      }
+      // Case 4: Valid file info response
+      else if (response.data && typeof response.data === 'object' && (response.data.success === true || response.data.fileName)) {
         setFileInfo(response.data);
       }
+      // Case 5: Unexpected response format (fallback)
+      else {
+        const mockError = {
+          response: {
+            data: {
+              success: false,
+              error: {
+                code: 'FILE_NOT_FOUND',
+                message: 'File not found or has expired'
+              }
+            },
+            status: 404
+          }
+        };
+        handleAxiosError(mockError, "Failed to load file information");
+      }
     } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.error?.message || "Failed to load file information";
-      setError(errorMessage);
+      handleAxiosError(err, "Failed to load file information");
     } finally {
       setLoading(false);
     }
@@ -61,8 +114,7 @@ const DownloadPage: React.FC = () => {
     if (!shareId) return;
 
     setDownloading(true);
-    setError(null);
-    setErrorCode(null);
+    clearError();
 
     try {
       // Step 1: Get download token
@@ -74,14 +126,19 @@ const DownloadPage: React.FC = () => {
         }
       );
 
-      // Check if response indicates an error (even with 2xx status)
-      if (!tokenResponse.data.success) {
+      // Check if response indicates an error (even with 2xx status like 202 for SCAN_PENDING)
+      if (!tokenResponse.data.success || (tokenResponse.status === 202 && tokenResponse.data.error)) {
         const errorResponse = tokenResponse.data as ErrorResponse;
-        const errorMessage = errorResponse.error?.message || "Download failed";
         const code = errorResponse.error?.code;
         
-        setError(errorMessage);
-        setErrorCode(code as ErrorCode || null);
+        // Create a proper error object for handleAxiosError with actual status code
+        const mockError = {
+          response: {
+            data: errorResponse,
+            status: tokenResponse.status // Use actual status code (e.g., 202 for SCAN_PENDING)
+          }
+        };
+        handleAxiosError(mockError, "Download failed");
         
         // Handle specific error codes
         if (code === ErrorCode.RATE_LIMITED) {
@@ -90,6 +147,8 @@ const DownloadPage: React.FC = () => {
         if (code === ErrorCode.INVALID_PASSWORD) {
           setPassword("");
         }
+        // SCAN_PENDING (202 status) is now properly handled by the unified error system
+        // The ErrorMessage component will show appropriate message with loading icon
         
         return; // Exit early for error responses
       }
@@ -106,14 +165,18 @@ const DownloadPage: React.FC = () => {
           }
         );
 
-        // Also check download response for errors
-        if (!downloadResponse.data.success) {
+        // Also check download response for errors (including 202 status for SCAN_PENDING)
+        if (!downloadResponse.data.success || (downloadResponse.status === 202 && downloadResponse.data.error)) {
           const errorResponse = downloadResponse.data as ErrorResponse;
-          const errorMessage = errorResponse.error?.message || "Download failed";
-          const code = errorResponse.error?.code;
           
-          setError(errorMessage);
-          setErrorCode(code as ErrorCode || null);
+          // Create a proper error object for handleAxiosError with actual status code
+          const mockError = {
+            response: {
+              data: errorResponse,
+              status: downloadResponse.status
+            }
+          };
+          handleAxiosError(mockError, "Download failed");
           return;
         }
 
@@ -132,14 +195,12 @@ const DownloadPage: React.FC = () => {
       }
     } catch (err: any) {
       const errorResponse = err.response?.data as ErrorResponse;
-      const errorMessage = errorResponse?.error?.message || "Download failed";
       const code = errorResponse?.error?.code;
       
-      setError(errorMessage);
-      setErrorCode(code as ErrorCode || null);
+      handleAxiosError(err, "Download failed");
 
-      // Check if rate limited
-      if (code === ErrorCode.RATE_LIMITED || errorMessage.includes("Too many failed attempts")) {
+      // Handle specific error codes
+      if (code === ErrorCode.RATE_LIMITED || err.response?.data?.error?.message?.includes("Too many failed attempts")) {
         setRemainingAttempts(0);
       }
 
@@ -147,6 +208,9 @@ const DownloadPage: React.FC = () => {
       if (code === ErrorCode.INVALID_PASSWORD || err.response?.status === 401 || err.response?.status === 429) {
         setPassword("");
       }
+      
+      // SCAN_PENDING is automatically handled by the unified error system
+      // The ErrorMessage component will display the appropriate loading/info message
     } finally {
       setDownloading(false);
     }
@@ -155,16 +219,15 @@ const DownloadPage: React.FC = () => {
   const handleDeleteClick = () => {
     setShowDeleteModal(true);
     setDeletePassword("");
-    setDeleteError(null);
-    setDeleteErrorCode(null);
+    clearDeleteError();
+    setDeleteSuccess(false); // Reset success state when opening modal
   };
 
   const handleDeleteConfirm = async () => {
     if (!shareId) return;
 
     setDeleting(true);
-    setDeleteError(null);
-    setDeleteErrorCode(null);
+    clearDeleteError();
 
     try {
       const deleteRequest = fileInfo?.isPasswordProtected
@@ -179,34 +242,30 @@ const DownloadPage: React.FC = () => {
         }
       );
 
-      if (response.data.success) {
+      if (typeof response.data === 'object' && response.data !== null && response.data.success) {
         // Hide modal and show success message
         setShowDeleteModal(false);
-        setError("File has been successfully deleted");
-        setErrorCode(null);
+        setDeleteSuccess(true);
+        // Clear any previous errors
+        clearError();
         // Disable all interactions after successful deletion
         setFileInfo(null);
       } else {
         const errorData = response.data as ErrorResponse;
-        const errorMessage = errorData.error?.message || "Failed to delete file";
         const code = errorData.error?.code;
         
         // Set modal-specific error state instead of page-level error
-        setDeleteError(errorMessage);
-        setDeleteErrorCode(code as ErrorCode || null);
+        handleDeleteError(errorData, "Failed to delete file");
 
         if (code === ErrorCode.INVALID_PASSWORD) {
           setDeletePassword("");
         }
       }
     } catch (err: any) {
-      const errorMessage =
-        err.response?.data?.error?.message || "Failed to delete file";
       const errorCode = err.response?.data?.error?.code;
       
       // Set modal-specific error state instead of page-level error
-      setDeleteError(errorMessage);
-      setDeleteErrorCode(errorCode as ErrorCode || null);
+      handleDeleteError(err, "Failed to delete file");
 
       if (errorCode === ErrorCode.INVALID_PASSWORD) {
         setDeletePassword("");
@@ -219,8 +278,8 @@ const DownloadPage: React.FC = () => {
   const handleDeleteCancel = () => {
     setShowDeleteModal(false);
     setDeletePassword("");
-    setDeleteError(null);
-    setDeleteErrorCode(null);
+    clearDeleteError();
+    setDeleteSuccess(false); // Reset success state when canceling
   };
 
   const formatDate = (dateString: string) => {
@@ -245,6 +304,30 @@ const DownloadPage: React.FC = () => {
     );
   }
 
+  if (deleteSuccess && !fileInfo) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
+        <div className="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+          <h2 className="text-xl font-semibold mb-6 text-gray-900 dark:text-gray-100">
+            File Deleted
+          </h2>
+          <SuccessMessage 
+            title="File deleted successfully"
+            message="The file has been permanently deleted and is no longer accessible."
+          />
+          <div className="mt-6 text-center">
+            <a
+              href="/"
+              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            >
+              Upload a new file
+            </a>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   if (error && !fileInfo) {
     return (
       <div className="max-w-2xl mx-auto px-4 py-8 sm:px-6 lg:px-8">
@@ -252,7 +335,11 @@ const DownloadPage: React.FC = () => {
           <h2 className="text-xl font-semibold mb-4 text-gray-900 dark:text-gray-100">
             File Not Found
           </h2>
-          <ErrorMessage message={error} />
+          <ErrorMessage 
+            message={error.message}
+            code={error.code}
+            config={error.config}
+          />
           <div className="mt-4">
             <a
               href="/"
@@ -347,7 +434,13 @@ const DownloadPage: React.FC = () => {
               </div>
             )}
 
-            {error && <ErrorMessage message={error} code={errorCode} />}
+            {error && (
+              <ErrorMessage 
+                message={error.message}
+                code={error.code}
+                config={error.config}
+              />
+            )}
 
             <button
               onClick={handleDownload}
@@ -355,7 +448,8 @@ const DownloadPage: React.FC = () => {
                 downloading ||
                 (fileInfo.isPasswordProtected && !password) ||
                 remainingAttempts === 0 ||
-                errorCode === ErrorCode.ACCESS_DENIED
+                error?.code === ErrorCode.ACCESS_DENIED ||
+                error?.code === ErrorCode.SCAN_PENDING
               }
               className="w-full bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-300 dark:disabled:bg-gray-700 disabled:cursor-not-allowed"
             >
@@ -363,10 +457,10 @@ const DownloadPage: React.FC = () => {
                 ? "Preparing Download..."
                 : remainingAttempts === 0
                 ? "Access Blocked"
-                : errorCode === ErrorCode.ACCESS_DENIED
+                : error?.code === ErrorCode.ACCESS_DENIED
                 ? "File Unavailable"
-                : errorCode === ErrorCode.SCAN_PENDING
-                ? "Scan in Progress"
+                : error?.code === ErrorCode.SCAN_PENDING
+                ? "Security Scan in Progress"
                 : "Download File"}
             </button>
 
@@ -460,7 +554,11 @@ const DownloadPage: React.FC = () => {
 
             {deleteError && (
               <div className="mb-4">
-                <ErrorMessage message={deleteError} code={deleteErrorCode} />
+                <ErrorMessage 
+                  message={deleteError.message}
+                  code={deleteError.code}
+                  config={deleteError.config}
+                />
               </div>
             )}
 

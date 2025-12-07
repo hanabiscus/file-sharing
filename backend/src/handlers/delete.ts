@@ -102,7 +102,7 @@ async function deleteHandler(
       if (!isValidPassword) {
         return createErrorResponse(
           ErrorCode.INVALID_PASSWORD,
-          "Invalid password",
+          "The password you entered is incorrect",
           origin
         );
       }
@@ -112,7 +112,7 @@ async function deleteHandler(
     try {
       // Delete from S3 first
       await deleteFile(fileRecord.s3Key);
-      
+
       // Then delete from DynamoDB
       await deleteFileRecord(shareId);
 
@@ -135,9 +135,10 @@ async function deleteHandler(
     } catch (deleteError) {
       secureLogger.error("Failed to delete file", {
         shareId: shareId.substring(0, 8) + "...",
-        error: deleteError instanceof Error ? deleteError.message : "Unknown error",
+        error:
+          deleteError instanceof Error ? deleteError.message : "Unknown error",
       });
-      
+
       return createErrorResponse(
         ErrorCode.STORAGE_ERROR,
         "Failed to delete file",

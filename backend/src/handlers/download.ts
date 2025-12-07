@@ -1,9 +1,23 @@
 import { APIGatewayProxyEvent, APIGatewayProxyResult } from "aws-lambda";
 import { ErrorResponse, ErrorCode } from "../types/api";
-import { getFileRecord, incrementDownloadCount, createDownloadToken, validateAndConsumeToken } from "../utils/dynamodb";
+import {
+  getFileRecord,
+  incrementDownloadCount,
+  createDownloadToken,
+  validateAndConsumeToken,
+} from "../utils/dynamodb";
 import { getPresignedDownloadUrl } from "../utils/s3";
-import { verifyPassword, isValidShareId, generateDownloadToken, isValidDownloadToken } from "../utils/crypto";
-import { checkRateLimit, recordAttempt, checkRateLimitGeneric } from "../utils/rateLimiter";
+import {
+  verifyPassword,
+  isValidShareId,
+  generateDownloadToken,
+  isValidDownloadToken,
+} from "../utils/crypto";
+import {
+  checkRateLimit,
+  recordAttempt,
+  checkRateLimitGeneric,
+} from "../utils/rateLimiter";
 import {
   createSecureResponse,
   validateEnvironment,
@@ -18,13 +32,13 @@ async function downloadHandler(
 
   try {
     validateEnvironment();
-    
+
     // Check if this is a token-based download request
     const token = event.queryStringParameters?.token;
     if (token) {
       return handleTokenDownload(event, token, origin);
     }
-    
+
     // Otherwise, handle regular download flow (generate token)
     const shareId = event.pathParameters?.shareId;
 
@@ -54,10 +68,17 @@ async function downloadHandler(
 
     // Apply general rate limiting to prevent ShareID enumeration
     const generalRateLimitKey = `download:${clientIp}`;
-    const isGeneralAllowed = await checkRateLimitGeneric(generalRateLimitKey, 60, 20); // 20 download attempts per minute per IP
-    
+    const isGeneralAllowed = await checkRateLimitGeneric(
+      generalRateLimitKey,
+      60,
+      20
+    ); // 20 download attempts per minute per IP
+
     if (!isGeneralAllowed) {
-      secureLogger.error('Download rate limit exceeded', { clientIp, shareId: shareId.substring(0, 8) + '...' });
+      secureLogger.error("Download rate limit exceeded", {
+        clientIp,
+        shareId: shareId.substring(0, 8) + "...",
+      });
       return createErrorResponse(
         ErrorCode.RATE_LIMITED,
         "Too many requests. Please try again later.",
@@ -88,7 +109,7 @@ async function downloadHandler(
     }
 
     // Check scan status
-    if (fileRecord.scanStatus === 'infected') {
+    if (fileRecord.scanStatus === "infected") {
       return createErrorResponse(
         ErrorCode.ACCESS_DENIED,
         "This file has been quarantined due to security concerns",
@@ -97,7 +118,10 @@ async function downloadHandler(
       );
     }
 
-    if (fileRecord.scanStatus === 'pending' || fileRecord.scanStatus === 'scanning') {
+    if (
+      fileRecord.scanStatus === "pending" ||
+      fileRecord.scanStatus === "scanning"
+    ) {
       return createErrorResponse(
         ErrorCode.SCAN_PENDING,
         "File is being scanned for security. Please try again in a few moments.",
@@ -106,7 +130,7 @@ async function downloadHandler(
       );
     }
 
-    if (fileRecord.scanStatus === 'error') {
+    if (fileRecord.scanStatus === "error") {
       return createErrorResponse(
         ErrorCode.ACCESS_DENIED,
         "File scan encountered an error and access has been denied for security reasons.",
@@ -127,7 +151,6 @@ async function downloadHandler(
           origin
         );
       }
-
 
       // Check rate limit
       const rateLimitResult = await checkRateLimit(shareId, clientIp);
@@ -150,7 +173,11 @@ async function downloadHandler(
       await recordAttempt(shareId, clientIp, isValidPassword);
 
       if (!isValidPassword) {
-        return createErrorResponse(ErrorCode.INVALID_PASSWORD, "Invalid password", origin);
+        return createErrorResponse(
+          ErrorCode.INVALID_PASSWORD,
+          "The password you entered is incorrect",
+          origin
+        );
       }
     }
 
@@ -208,7 +235,7 @@ async function handleTokenDownload(
 
     // Validate and consume token
     const tokenResult = await validateAndConsumeToken(token, clientIp);
-    
+
     if (!tokenResult.valid) {
       return createErrorResponse(
         ErrorCode.VALIDATION_ERROR,
@@ -219,7 +246,7 @@ async function handleTokenDownload(
 
     // Get file record
     const fileRecord = await getFileRecord(tokenResult.shareId!);
-    
+
     if (!fileRecord) {
       return createErrorResponse(
         ErrorCode.FILE_NOT_FOUND,

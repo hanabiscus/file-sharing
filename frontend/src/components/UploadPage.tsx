@@ -7,6 +7,7 @@ import UploadProgress from './UploadProgress';
 import ShareLinkDisplay from './ShareLinkDisplay';
 import ErrorMessage from './ErrorMessage';
 import { validatePasswordStrength } from '../utils/passwordValidator';
+import { useErrorHandler } from '../hooks/useErrorHandler';
 
 const UploadPage: React.FC = () => {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -17,15 +18,15 @@ const UploadPage: React.FC = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResponse, setUploadResponse] = useState<UploadResponse | null>(null);
-  const [error, setError] = useState<string | null>(null);
   const [passwordErrors, setPasswordErrors] = useState<string[]>([]);
   const [passwordStrength, setPasswordStrength] = useState<'weak' | 'medium' | 'strong'>('weak');
   const [passwordMismatch, setPasswordMismatch] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const { error, handleAxiosError, clearError } = useErrorHandler();
 
   const handleFileSelect = (file: File) => {
     setSelectedFile(file);
-    setError(null);
+    clearError();
     setUploadResponse(null);
   };
 
@@ -54,7 +55,7 @@ const UploadPage: React.FC = () => {
     if (!selectedFile) return;
 
     setUploading(true);
-    setError(null);
+    clearError();
     setUploadProgress(0);
 
 
@@ -124,29 +125,7 @@ const UploadPage: React.FC = () => {
         }
       }
     } catch (err: any) {
-      
-      let errorMessage = 'Upload failed. Please try again.';
-      
-      // Check for specific error conditions first, prioritizing detailed API messages
-      if (err.code === 'ECONNABORTED') {
-        errorMessage = 'Upload timed out. Please check your connection and try again.';
-      } else if (!navigator.onLine) {
-        errorMessage = 'No internet connection. Please check your connection and try again.';
-      } else if (typeof err.response?.data === 'object' && err.response?.data !== null && err.response?.data?.error?.message) {
-        // Prioritize detailed error message from API
-        errorMessage = err.response.data.error.message;
-      } else if (err.message) {
-        // Use error message from exception
-        errorMessage = err.message;
-      } else if (err.response?.status === 413) {
-        // Fallback for 413 status when no detailed message is available
-        errorMessage = 'File too large. Maximum file size is 100MB.';
-      } else if (err.response?.status >= 500) {
-        // Fallback for server errors when no detailed message is available
-        errorMessage = 'Server error. Please try again later.';
-      }
-      
-      setError(errorMessage);
+      handleAxiosError(err, 'Upload failed. Please try again.');
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -158,7 +137,7 @@ const UploadPage: React.FC = () => {
     setPassword('');
     setConfirmPassword('');
     setUploadResponse(null);
-    setError(null);
+    clearError();
     setUploadProgress(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
@@ -280,7 +259,13 @@ const UploadPage: React.FC = () => {
 
                 {uploading && <UploadProgress progress={uploadProgress} />}
 
-                {error && <ErrorMessage message={error} />}
+                {error && (
+                  <ErrorMessage 
+                    message={error.message}
+                    code={error.code}
+                    config={error.config}
+                  />
+                )}
 
                 <div className="flex space-x-3">
                   <button
